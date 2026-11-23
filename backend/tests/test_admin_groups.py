@@ -76,3 +76,23 @@ async def test_everyone_is_protected(client_for: MakeClient, org: dict[str, Any]
     detail = (await admin.get(f"/api/admin/groups/{everyone['id']}")).json()
     assert len(detail["members"]) == 3
     assert detail["description"] == "Every employee."
+
+
+async def test_bangla_names_are_supported(client_for: MakeClient, org: dict[str, Any]) -> None:
+    admin = await client_for(org["tariq"])
+    group = await admin.post("/api/admin/groups", json={"name": "অর্থ ও হিসাব বিভাগ"})
+    assert group.status_code == 201
+    body = group.json()
+    assert body["name"] == "অর্থ ও হিসাব বিভাগ"
+    assert body["slug"]  # an ASCII-safe fallback slug is generated
+    second = await admin.post("/api/admin/groups", json={"name": "মানব সম্পদ"})
+    assert second.status_code == 201
+    assert second.json()["slug"] != body["slug"]
+
+    user = await admin.post(
+        "/api/admin/users",
+        json={"name": "নাদিয়া রহমান", "email": "nadia.bn@example.com", "group_ids": [body["id"]]},
+    )
+    assert user.status_code == 201
+    assert user.json()["name"] == "নাদিয়া রহমান"
+    assert "অর্থ ও হিসাব বিভাগ" in [g["name"] for g in user.json()["groups"]]
