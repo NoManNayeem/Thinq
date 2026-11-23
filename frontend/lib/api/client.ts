@@ -20,6 +20,17 @@ export type DocumentStatus = DocumentSummary["status"];
 export type DocumentVersion = Schemas["VersionOut"];
 export type AttentionItem = Schemas["AttentionItem"];
 export type DocumentScan = Schemas["ScanOut"];
+export type Conversation = Schemas["ConversationOut"];
+export type ConversationDetail = Schemas["ConversationDetail"];
+export type StoredChatMessage = Schemas["ChatMessageOut"];
+export type ChatSource = Schemas["SourceOut"];
+export type ChatNotice = Schemas["NoticeOut"];
+export type ChatFeedback = Schemas["FeedbackOut"];
+export type ChatConfig = Schemas["ChatConfigOut"];
+export type KnowledgeGraph = Schemas["KnowledgeGraphOut"];
+export type GraphNode = Schemas["GraphNode"];
+export type GraphEdge = Schemas["GraphEdge"];
+export type KnowledgeStatus = Schemas["KnowledgeStatusOut"];
 
 /**
  * Same-origin client. The browser talks only to the Next.js server, which forwards

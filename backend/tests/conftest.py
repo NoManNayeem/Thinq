@@ -77,7 +77,7 @@ async def clean_db(app: FastAPI, maker: async_sessionmaker[AsyncSession]) -> Asy
         await db.execute(
             text(
                 "TRUNCATE document_flags, document_versions, document_scans, documents, "
-                "audit_events, user_sessions, memberships, users CASCADE"
+                "audit_events, user_sessions, memberships, users, knowledge_datasets CASCADE"
             )
         )
         await db.execute(text("DELETE FROM groups WHERE NOT is_system"))

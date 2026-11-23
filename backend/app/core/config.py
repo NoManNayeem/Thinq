@@ -42,6 +42,37 @@ class Settings(BaseSettings):
     login_max_failures: int = 5
     login_window_s: int = 900
 
+    # ---- answers (Pydantic AI) ------------------------------------------------------
+    llm_model: str = Field(
+        default="",
+        description=(
+            'Pydantic AI model as "provider:model", e.g. "openai:gpt-5.2", '
+            '"anthropic:claude-sonnet-5-5", "google-gla:gemini-3-flash", "groq:llama-4-scout", '
+            '"ollama:qwen3:4b-instruct-2507-q4_K_M". Empty = preview mode (no AI model).'
+        ),
+    )
+    llm_fallback_models: str = Field(
+        default="", description="Comma-separated models tried in order if the main one fails."
+    )
+    llm_timeout_s: float = 90
+    llm_max_output_tokens: int = 900
+    llm_source_chars: int = Field(
+        default=6000, description="Most characters of each cited document sent to the model."
+    )
+
+    # ---- retrieval ----------------------------------------------------------------------
+    retriever: Literal["lexical", "cognee"] = Field(
+        default="lexical",
+        description='"cognee" adds Cognee semantic search (needs the cognee compose profile).',
+    )
+    cognee_url: str = "http://cognee:8000"
+    cognee_user: str = "default_user@example.com"
+    cognee_password: str | None = None
+    cognee_timeout_s: float = 20
+    cognee_index_timeout_s: float = 900
+    cognee_sync_interval_s: float = 30
+    cognee_dataset_prefix: str = "thinq"
+
     @property
     def database_url_str(self) -> str:
         return str(self.database_url)

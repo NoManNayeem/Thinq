@@ -13,6 +13,8 @@ export function crumbsFor(pathname: string): Crumb[] {
   const parts = pathname.split("/").filter(Boolean);
   if (parts.length === 0) return [{ label: "Overview" }];
   if (parts[0] === "profile") return [{ label: "Your profile" }];
+  if (parts[0] === "chat") return [{ label: "Ask Thinq" }];
+  if (parts[0] === "knowledge") return [{ label: "Knowledge graph" }];
   if (parts[0] === "library") {
     return parts[1]
       ? [{ label: "Library", href: "/library" }, { label: "Document" }]

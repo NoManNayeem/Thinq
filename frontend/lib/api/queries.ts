@@ -28,6 +28,11 @@ export const keys = {
   version: (id: string, n: number) => ["document", id, "versions", n] as const,
   attention: ["admin", "attention"] as const,
   latestScan: ["admin", "scan"] as const,
+  chatConfig: ["chat", "config"] as const,
+  knowledgeGraph: ["knowledge", "graph"] as const,
+  knowledgeStatus: ["admin", "knowledge"] as const,
+  conversations: ["chat", "conversations"] as const,
+  conversation: (id: string) => ["chat", "conversation", id] as const,
 };
 
 // ---------------------------------------------------------------- auth
@@ -432,5 +437,111 @@ export function useScanDocuments() {
   return useMutation({
     mutationFn: () => unwrap(api.POST("/api/admin/documents/scan")),
     onSuccess: () => invalidateDocuments(qc),
+  });
+}
+
+// ---------------------------------------------------------------- chat
+
+export function useKnowledgeGraph() {
+  return useQuery({
+    queryKey: keys.knowledgeGraph,
+    queryFn: () => unwrap(api.GET("/api/knowledge/graph")),
+    staleTime: 60_000,
+  });
+}
+
+export function useKnowledgeStatus(enabled = true) {
+  return useQuery({
+    queryKey: keys.knowledgeStatus,
+    queryFn: () => unwrap(api.GET("/api/admin/knowledge")),
+    enabled,
+    refetchInterval: (q) => (q.state.data?.syncing || q.state.data?.pending ? 5_000 : false),
+  });
+}
+
+export function useSyncKnowledge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(api.POST("/api/admin/knowledge/sync")),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.knowledgeStatus });
+      qc.invalidateQueries({ queryKey: keys.knowledgeGraph });
+    },
+  });
+}
+
+export function useChatConfig() {
+  return useQuery({ queryKey: keys.chatConfig, queryFn: () => unwrap(api.GET("/api/chat/config")) });
+}
+
+export function useConversations() {
+  return useQuery({
+    queryKey: keys.conversations,
+    queryFn: () => unwrap(api.GET("/api/chat/conversations")),
+  });
+}
+
+export function useConversation(id: string | null) {
+  return useQuery({
+    queryKey: keys.conversation(id ?? ""),
+    queryFn: () =>
+      unwrap(
+        api.GET("/api/chat/conversations/{conversation_id}", {
+          params: { path: { conversation_id: id ?? "" } },
+        }),
+      ),
+    enabled: id !== null,
+    // A thread is loaded once; afterwards the live chat state is the source of truth.
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useCreateConversation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(api.POST("/api/chat/conversations", { body: {} })),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.conversations }),
+  });
+}
+
+export function useUpdateConversation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & Schemas["ConversationUpdateIn"]) =>
+      unwrap(
+        api.PATCH("/api/chat/conversations/{conversation_id}", {
+          params: { path: { conversation_id: id } },
+          body,
+        }),
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.conversations }),
+  });
+}
+
+export function useDeleteConversation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      unwrap(
+        api.DELETE("/api/chat/conversations/{conversation_id}", {
+          params: { path: { conversation_id: id } },
+        }),
+      ),
+    onSuccess: (_, id) => {
+      qc.removeQueries({ queryKey: keys.conversation(id) });
+      qc.invalidateQueries({ queryKey: keys.conversations });
+    },
+  });
+}
+
+export function useMessageFeedback() {
+  return useMutation({
+    mutationFn: ({ messageId, body }: { messageId: string; body: Schemas["FeedbackIn"] | null }) => {
+      const opts = { params: { path: { message_id: messageId } } };
+      return body
+        ? unwrap(api.PUT("/api/chat/messages/{message_id}/feedback", { ...opts, body }))
+        : unwrap(api.DELETE("/api/chat/messages/{message_id}/feedback", opts));
+    },
   });
 }

@@ -1,5 +1,6 @@
 # Production-like stack:  docker compose up
 # Dev with hot reload:    make dev   (docker compose -f compose.yaml -f compose.dev.yaml up)
+# With the Cognee knowledge graph:  docker compose --profile cognee up   (see docs in README)
 name: thinq
 
 services:
@@ -31,6 +32,20 @@ services:
       THINQ_DEMO_MODE: ${THINQ_DEMO_MODE:-false}
       THINQ_SEED_DIR: /seed
       THINQ_SEED_PASSWORD: ${THINQ_SEED_PASSWORD:-}
+      # Answers: any Pydantic AI "provider:model" (empty = preview mode, no AI model).
+      THINQ_LLM_MODEL: ${THINQ_LLM_MODEL:-}
+      THINQ_LLM_FALLBACK_MODELS: ${THINQ_LLM_FALLBACK_MODELS:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      # Retrieval: "lexical" (built in) or "cognee" (needs the cognee profile).
+      THINQ_RETRIEVER: ${THINQ_RETRIEVER:-lexical}
+      THINQ_COGNEE_URL: http://cognee:8000
+      THINQ_COGNEE_PASSWORD: ${COGNEE_PASSWORD:-thinq-cognee}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${THINQ_SEED_PATH:-./seed/sample}:/seed:ro
     healthcheck:
@@ -65,5 +80,69 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ---- optional: Cognee knowledge graph, stored in the same PostgreSQL server -----
+  cognee-db-init:
+    profiles: [cognee]
+    image: pgvector/pgvector:0.8.7-pg18-trixie
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-thinq}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-thinq}
+      PGDATABASE: ${POSTGRES_DB:-thinq}
+    command:
+      - sh
+      - -c
+      - echo "SELECT 'CREATE DATABASE cognee' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'cognee')\gexec" | psql -v ON_ERROR_STOP=1
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  cognee:
+    profiles: [cognee]
+    image: cognee/cognee:1.6.10
+    environment:
+      # Access control stays on: Thinq signs in as Cognee's default user, and keeps one dataset
+      # per access group. Thinq still re-checks every result against its own access rules.
+      DEFAULT_USER_PASSWORD: ${COGNEE_PASSWORD:-thinq-cognee}
+      TELEMETRY_DISABLED: "true"
+      DB_PROVIDER: postgres
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: cognee
+      DB_USERNAME: ${POSTGRES_USER:-thinq}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-thinq}
+      VECTOR_DB_PROVIDER: pgvector
+      VECTOR_DB_HOST: db
+      VECTOR_DB_PORT: "5432"
+      VECTOR_DB_NAME: cognee
+      VECTOR_DB_USERNAME: ${POSTGRES_USER:-thinq}
+      VECTOR_DB_PASSWORD: ${POSTGRES_PASSWORD:-thinq}
+      GRAPH_DATABASE_PROVIDER: postgres_demo
+      GRAPH_DATABASE_HOST: db
+      GRAPH_DATABASE_PORT: "5432"
+      GRAPH_DATABASE_NAME: cognee
+      GRAPH_DATABASE_USERNAME: ${POSTGRES_USER:-thinq}
+      GRAPH_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-thinq}
+      # The model Cognee uses to build the graph (local Ollama by default).
+      LLM_PROVIDER: ${COGNEE_LLM_PROVIDER:-ollama}
+      LLM_MODEL: ${COGNEE_LLM_MODEL:-qwen3:4b-instruct-2507-q4_K_M}
+      LLM_ENDPOINT: ${COGNEE_LLM_ENDPOINT:-http://host.docker.internal:11434}
+      LLM_API_KEY: ${COGNEE_LLM_API_KEY:-ollama}
+      # Local CPU embeddings, so no document text leaves the machine for indexing.
+      EMBEDDING_PROVIDER: fastembed
+      EMBEDDING_MODEL: BAAI/bge-small-en-v1.5
+      EMBEDDING_DIMENSIONS: "384"
+      HF_HOME: /cognee-storage/huggingface
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - cognee-storage:/cognee-storage
+    depends_on:
+      cognee-db-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   db-data:
+  cognee-storage:

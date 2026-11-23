@@ -6,6 +6,8 @@ import {
   LayoutDashboardIcon,
   LibraryIcon,
   type LucideIcon,
+  MessagesSquareIcon,
+  NetworkIcon,
   ScrollTextIcon,
   UserCircleIcon,
   UsersIcon,
@@ -21,7 +23,9 @@ type NavItem = { href: Route; label: string; icon: LucideIcon; exact?: boolean; 
 
 export const WORKSPACE_NAV: NavItem[] = [
   { href: "/", label: "Overview", icon: LayoutDashboardIcon, exact: true },
+  { href: "/chat" as Route, label: "Ask Thinq", icon: MessagesSquareIcon },
   { href: "/library", label: "Library", icon: LibraryIcon },
+  { href: "/knowledge" as Route, label: "Knowledge graph", icon: NetworkIcon },
   { href: "/profile", label: "Your profile", icon: UserCircleIcon },
 ];
 

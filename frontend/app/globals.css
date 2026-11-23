@@ -244,3 +244,11 @@
     animation: none;
   }
 }
+
+/* Knowledge graph: keyboard focus ring on SVG nodes (only for keyboard focus). */
+.graph-focus-ring {
+  opacity: 0;
+}
+[data-node]:focus-visible .graph-focus-ring {
+  opacity: 1;
+}

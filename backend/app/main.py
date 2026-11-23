@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -10,15 +12,19 @@ from app.api.routes import (
     admin_audit,
     admin_documents,
     admin_groups,
+    admin_knowledge,
     admin_users,
     auth,
+    chat,
     documents,
+    knowledge,
     system,
 )
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError, NotAuthenticated, app_error_handler
 from app.core.logging import configure_logging
 from app.db.session import create_engine, create_sessionmaker
+from app.services.knowledge.service import KnowledgeService
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -30,7 +36,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         engine = create_engine(settings)
         app.state.engine = engine
         app.state.sessionmaker = create_sessionmaker(engine)
+        app.state.knowledge = None
+        sync_task: asyncio.Task[None] | None = None
+        if settings.retriever == "cognee":
+            service = KnowledgeService.from_settings(settings, app.state.sessionmaker)
+            app.state.knowledge = service
+            if settings.cognee_sync_interval_s > 0:
+                sync_task = asyncio.create_task(service.run_forever(), name="knowledge-sync")
         yield
+        if sync_task is not None:
+            sync_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await sync_task
+        if app.state.knowledge is not None:
+            await app.state.knowledge.client.aclose()
         await engine.dispose()
 
     app = FastAPI(
@@ -56,10 +75,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         system,
         auth,
         documents,
+        chat,
+        knowledge,
         admin_users,
         admin_groups,
         admin_audit,
         admin_documents,
+        admin_knowledge,
     ):
         app.include_router(module.router, prefix="/api")
     return app

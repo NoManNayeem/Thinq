@@ -16,13 +16,14 @@ dependencies = [
     "pgvector>=0.5.1,<0.6",
     "pwdlib[argon2]>=0.4.2,<0.5",
     "structlog>=26.1",
+    "pydantic-ai-slim[anthropic,google,groq,openai]>=2.71,<3",
+    "httpx>=0.28.1",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=9.2",
     "pytest-asyncio>=1.5",
-    "httpx>=0.28.1",
     "ruff>=0.17.6",
     "mypy>=2.4",
 ]

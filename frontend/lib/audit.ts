@@ -75,6 +75,13 @@ const ACTIONS: Record<string, { label: string; describe?: Describe }> = {
     describe: (e) =>
       `${str(e.details.created)} new · ${str(e.details.updated)} changed · ${str(e.details.missing)} missing`,
   },
+  "chat.asked": {
+    label: "Asked Thinq",
+    describe: (e) => {
+      const docs = Array.isArray(e.details.documents) ? e.details.documents.length : 0;
+      return `${docs} source${docs === 1 ? "" : "s"}${e.details.regenerated ? " · regenerated" : ""}`;
+    },
+  },
   "system.seeded": {
     label: "Initial data loaded",
     describe: (e) => `${str(e.details.users)} users from ${str(e.details.source)}`,
@@ -106,6 +113,7 @@ export const AUDIT_FILTERS = [
   { value: "membership.", label: "Group membership" },
   { value: "group.", label: "Groups" },
   { value: "document", label: "Documents" },
+  { value: "chat.", label: "Questions" },
   { value: "system.", label: "System" },
 ] as const;
 

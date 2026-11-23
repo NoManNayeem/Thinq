@@ -48,7 +48,9 @@ export function uniqueSuffix() {
 /** Every screen a signed-in Admin can reach, for checks that should hold everywhere. */
 export const ADMIN_SCREENS = [
   "/",
+  "/chat",
   "/library",
+  "/knowledge",
   "/profile",
   "/admin/attention",
   "/admin/users",
