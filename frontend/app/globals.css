@@ -1,0 +1,245 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Thinq design system v2
+ * ──────────────────────
+ * Colour follows 60 · 30 · 10:
+ *   60  light neutral canvas and white surfaces       → --canvas, --background, --card
+ *   30  "ink" navy-slate and muted neutral panels     → --ink (sidebar, brand panel), --secondary, --muted
+ *   10  indigo accent, only for the one primary action
+ *       per screen, the active nav marker, links, focus → --primary, --link, --ring
+ * Success / warning / destructive mark state only.
+ *
+ * Type: two families (Inter for Latin, Noto Sans Bengali for Bangla), sizes
+ * 12 / 14 / 16 / 20 / 24 / 32, weights 400 / 500 / 600. Tailwind's default scales
+ * are removed below so nothing else can be used by accident.
+ *
+ * Spacing: 4-point grid (Tailwind's 4 px unit, whole steps only). Enforced by
+ * lib/design-system.test.ts.
+ */
+
+@theme {
+  --text-*: initial;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 2rem;
+  --text-2xl: 2rem;
+  --text-2xl--line-height: 2.5rem;
+
+  --font-weight-*: initial;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", "Noto Sans Bengali Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-heading: var(--font-sans);
+
+  --color-canvas: var(--canvas);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-link: var(--link);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-strong: var(--destructive-strong);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+
+  --color-ink: var(--ink);
+  --color-ink-foreground: var(--ink-foreground);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-hover: var(--ink-hover);
+  --color-ink-active: var(--ink-active);
+  --color-ink-border: var(--ink-border);
+  --color-ink-accent: var(--ink-accent);
+
+  /* shadcn primitives that reference a sidebar palette */
+  --color-sidebar: var(--ink);
+  --color-sidebar-foreground: var(--ink-foreground);
+  --color-sidebar-primary: var(--primary);
+  --color-sidebar-primary-foreground: var(--primary-foreground);
+  --color-sidebar-accent: var(--ink-active);
+  --color-sidebar-accent-foreground: var(--ink-foreground);
+  --color-sidebar-border: var(--ink-border);
+  --color-sidebar-ring: var(--ring);
+  --color-chart-1: var(--primary);
+  --color-chart-2: var(--success);
+  --color-chart-3: var(--warning);
+  --color-chart-4: var(--info);
+  --color-chart-5: var(--muted-foreground);
+}
+
+:root {
+  --radius: 0.5rem;
+
+  /* 60 — neutral */
+  --canvas: #f7f8fa;
+  --background: #ffffff;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --foreground: #111827;
+
+  /* 30 — secondary neutral tones */
+  --secondary: #f1f3f6;
+  --secondary-foreground: #111827;
+  --muted: #f1f3f6;
+  --muted-foreground: #4b5563;
+  --accent: #e9ecf1;
+  --accent-foreground: #111827;
+  --border: #e3e6eb;
+  --input: #c9ced6;
+
+  --ink: #111827;
+  --ink-foreground: #f3f4f6;
+  --ink-muted: #9ca3af;
+  --ink-hover: rgb(255 255 255 / 0.06);
+  --ink-active: rgb(255 255 255 / 0.1);
+  --ink-border: rgb(255 255 255 / 0.08);
+  --ink-accent: #a5b4fc;
+
+  /* 10 — accent */
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-foreground: #ffffff;
+  --primary-subtle: #eef2ff;
+  --link: #4338ca;
+  --ring: #4f46e5;
+
+  /* state */
+  --destructive: #b91c1c;
+  --destructive-strong: #b91c1c;
+  --success: #047857;
+  --warning: #b45309;
+  --info: #1d4ed8;
+}
+
+.dark {
+  /* 60 */
+  --canvas: #0b0f17;
+  --background: #111827;
+  --card: #111827;
+  --card-foreground: #f3f4f6;
+  --popover: #1a2130;
+  --popover-foreground: #f3f4f6;
+  --foreground: #f3f4f6;
+
+  /* 30 */
+  --secondary: #1a2130;
+  --secondary-foreground: #f3f4f6;
+  --muted: #1a2130;
+  --muted-foreground: #a3aab8;
+  --accent: #222b3b;
+  --accent-foreground: #f3f4f6;
+  --border: #263042;
+  --input: #3a4558;
+
+  --ink: #06090f;
+  --ink-foreground: #f3f4f6;
+  --ink-muted: #9ca3af;
+  --ink-hover: rgb(255 255 255 / 0.05);
+  --ink-active: rgb(255 255 255 / 0.09);
+  --ink-border: rgb(255 255 255 / 0.07);
+  --ink-accent: #a5b4fc;
+
+  /* 10 */
+  --primary: #4f46e5;
+  --primary-hover: #5b54ec;
+  --primary-foreground: #ffffff;
+  --primary-subtle: rgb(99 102 241 / 0.14);
+  --link: #a5b4fc;
+  --ring: #818cf8;
+
+  --destructive: #f87171;
+  --destructive-strong: #b91c1c;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --info: #60a5fa;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    font-feature-settings: "cv11", "ss03";
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-canvas text-sm text-foreground antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  ::selection {
+    background-color: color-mix(in srgb, var(--primary) 20%, transparent);
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Thin progress bar shown while any request is in flight (slow networks). */
+@keyframes thinq-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+.thinq-progress-bar {
+  animation: thinq-progress 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .thinq-progress-bar {
+    animation: none;
+  }
+}

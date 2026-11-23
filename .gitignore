@@ -1,0 +1,21 @@
+# Private working documents and sample data
+docs/
+
+# Local environment
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Python
+__pycache__/
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Node
+node_modules/
+.next/
+playwright-report/
+test-results/

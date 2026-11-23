@@ -1,0 +1,40 @@
+import {
+  BanIcon,
+  DatabaseIcon,
+  KeyRoundIcon,
+  LogInIcon,
+  LogOutIcon,
+  type LucideIcon,
+  PencilIcon,
+  RotateCcwIcon,
+  ShieldAlertIcon,
+  ShieldCheckIcon,
+  UserMinusIcon,
+  UserPlusIcon,
+  UsersRoundIcon,
+  XCircleIcon,
+} from "lucide-react";
+
+const ICONS: Record<string, LucideIcon> = {
+  "auth.login": LogInIcon,
+  "auth.login_failed": ShieldAlertIcon,
+  "auth.logout": LogOutIcon,
+  "user.created": UserPlusIcon,
+  "user.updated": PencilIcon,
+  "user.role_changed": ShieldCheckIcon,
+  "user.deactivated": BanIcon,
+  "user.reactivated": RotateCcwIcon,
+  "user.password_reset": KeyRoundIcon,
+  "user.password_changed": KeyRoundIcon,
+  "user.sessions_revoked": LogOutIcon,
+  "membership.added": UserPlusIcon,
+  "membership.removed": UserMinusIcon,
+  "group.created": UsersRoundIcon,
+  "group.updated": PencilIcon,
+  "group.deleted": XCircleIcon,
+  "system.seeded": DatabaseIcon,
+};
+
+export function auditIcon(action: string): LucideIcon {
+  return ICONS[action] ?? PencilIcon;
+}

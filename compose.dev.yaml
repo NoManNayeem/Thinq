@@ -1,0 +1,25 @@
+# Hot-reload overrides. Source folders are bind-mounted; dependencies stay inside the images.
+services:
+  db:
+    ports:
+      - "127.0.0.1:${THINQ_DB_PORT:-55432}:5432"
+
+  backend:
+    build:
+      target: dev
+    environment:
+      THINQ_ENVIRONMENT: development
+      THINQ_LOG_JSON: "false"
+    volumes:
+      - ./backend:/app
+      - ${THINQ_SEED_PATH:-./seed/sample}:/seed:ro
+    ports:
+      - "127.0.0.1:${THINQ_API_PORT:-8000}:8000"
+
+  frontend:
+    build:
+      target: dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next

@@ -1,0 +1,4 @@
+user_id,name,email,title,role,access_groups
+U1,Dana Lee,dana@example.com,Operations Coordinator,Member,Everyone;Operations
+U2,Sam Patel,sam@example.com,Finance Manager,Member,Everyone;Finance
+U3,Alex Morgan,alex@example.com,IT Lead,Admin,Everyone;Operations;Finance
