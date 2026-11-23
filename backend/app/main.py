@@ -6,7 +6,15 @@ from fastapi.responses import JSONResponse
 
 from app import __version__
 from app.api.middleware import RequestContextMiddleware
-from app.api.routes import admin_audit, admin_groups, admin_users, auth, system
+from app.api.routes import (
+    admin_audit,
+    admin_documents,
+    admin_groups,
+    admin_users,
+    auth,
+    documents,
+    system,
+)
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError, NotAuthenticated, app_error_handler
 from app.core.logging import configure_logging
@@ -44,7 +52,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.add_exception_handler(AppError, handle_app_error)
 
-    for module in (system, auth, admin_users, admin_groups, admin_audit):
+    for module in (
+        system,
+        auth,
+        documents,
+        admin_users,
+        admin_groups,
+        admin_audit,
+        admin_documents,
+    ):
         app.include_router(module.router, prefix="/api")
     return app
 

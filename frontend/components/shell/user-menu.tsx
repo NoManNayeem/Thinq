@@ -30,7 +30,8 @@ export function UserMenu() {
 
   const signOut = () =>
     logout.mutate(undefined, {
-      onSuccess: () => router.replace("/sign-in"),
+      // Full page load, so no page cached for the signed-in session can be shown again.
+      onSuccess: () => window.location.replace("/sign-in"),
       onError: (e) => toast.error(errorMessage(e)),
     });
 

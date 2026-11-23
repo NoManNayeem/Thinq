@@ -2,7 +2,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import AuditEvent, Group, User
+from app.models import AuditEvent, Document, Group, User
 
 SYSTEM_ACTOR = "system"
 
@@ -12,7 +12,7 @@ async def record(
     *,
     actor: User | None,
     action: str,
-    target: User | Group | None = None,
+    target: User | Group | Document | None = None,
     target_label: str | None = None,
     details: dict[str, Any] | None = None,
     ip_address: str | None = None,
@@ -23,6 +23,12 @@ async def record(
         target_type, target_id, target_label = "user", str(target.id), target_label or target.email
     elif isinstance(target, Group):
         target_type, target_id, target_label = "group", str(target.id), target_label or target.name
+    elif isinstance(target, Document):
+        target_type, target_id, target_label = (
+            "document",
+            str(target.id),
+            target_label or target.title,
+        )
     db.add(
         AuditEvent(
             actor_id=actor.id if actor else None,

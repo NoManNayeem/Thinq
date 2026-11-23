@@ -27,9 +27,13 @@ async function expectTouchTargets(page: Page, where: string) {
 }
 
 test("controls are at least 48px tall and fit the screen on a phone", async ({ page }) => {
-  await page.goto("/sign-in");
-  await settled(page);
-  await expectTouchTargets(page, "/sign-in");
+  for (const path of ["/", "/sign-in"]) {
+    await page.goto(path);
+    await settled(page);
+    await expectTouchTargets(page, path);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow, `${path} scrolls sideways`).toBeLessThanOrEqual(0);
+  }
   await signInWithPassword(page, ADMIN_EMAIL);
   for (const path of ADMIN_SCREENS) {
     await page.goto(path);

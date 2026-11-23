@@ -8,8 +8,8 @@ import {
   RefreshCwIcon,
   SearchXIcon,
 } from "lucide-react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, errorMessage } from "@/lib/api/client";
 
@@ -64,10 +64,10 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
 
 function BackHome() {
   return (
-    <Button variant="outline" render={<Link href="/" />} nativeButton={false}>
+    <ButtonLink href="/" variant="outline">
       <ArrowLeftIcon />
       Back to overview
-    </Button>
+    </ButtonLink>
   );
 }
 

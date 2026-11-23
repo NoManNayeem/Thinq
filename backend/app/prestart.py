@@ -15,6 +15,7 @@ from alembic.config import Config
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.db.session import create_engine, create_sessionmaker
+from app.services.documents.importer import scan_documents
 from app.services.seed import seed_from_dir
 
 log = structlog.get_logger("prestart")
@@ -56,6 +57,11 @@ async def _seed(settings: Settings) -> None:
             result = await seed_from_dir(db, settings.seed_dir, settings.seed_password)
         if result.skipped_reason:
             log.info("seed skipped", reason=result.skipped_reason)
+        # Documents are re-scanned on every start; unchanged files are left alone.
+        async with create_sessionmaker(engine)() as db, db.begin():
+            report = await scan_documents(db, settings.seed_dir, actor=None)
+        if report.skipped_reason:
+            log.info("document scan skipped", reason=report.skipped_reason)
     finally:
         await engine.dispose()
 

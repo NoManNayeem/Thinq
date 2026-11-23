@@ -7,7 +7,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { ApiError, api, type Me, type Schemas, unwrap } from "./client";
+import { ApiError, api, type DocumentStatus, type Me, type Schemas, unwrap } from "./client";
 
 export const keys = {
   me: ["me"] as const,
@@ -21,6 +21,13 @@ export const keys = {
   group: (id: string) => ["admin", "group", id] as const,
   audit: (params: AuditParams) => ["admin", "audit", params] as const,
   auditAll: ["admin", "audit"] as const,
+  documents: (params: DocumentListParams) => ["documents", params] as const,
+  documentsAll: ["documents"] as const,
+  document: (id: string) => ["document", id] as const,
+  versions: (id: string) => ["document", id, "versions"] as const,
+  version: (id: string, n: number) => ["document", id, "versions", n] as const,
+  attention: ["admin", "attention"] as const,
+  latestScan: ["admin", "scan"] as const,
 };
 
 // ---------------------------------------------------------------- auth
@@ -302,4 +309,128 @@ export function useAudit(params: AuditParams, enabled = true) {
 
 export async function fetchAuditPage(params: AuditParams & { before?: number }) {
   return unwrap(api.GET("/api/admin/audit", { params: { query: params } }));
+}
+
+// ---------------------------------------------------------------- documents
+
+export type DocumentListParams = {
+  q?: string;
+  status?: DocumentStatus;
+  group_id?: string;
+  limit?: number;
+};
+
+export function useDocuments(params: DocumentListParams) {
+  return useQuery({
+    queryKey: keys.documents(params),
+    queryFn: () => unwrap(api.GET("/api/documents", { params: { query: params } })),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useDocument(id: string) {
+  return useQuery({
+    queryKey: keys.document(id),
+    queryFn: () => unwrap(api.GET("/api/documents/{document_id}", { params: { path: { document_id: id } } })),
+  });
+}
+
+export function useVersions(id: string) {
+  return useQuery({
+    queryKey: keys.versions(id),
+    queryFn: () =>
+      unwrap(api.GET("/api/documents/{document_id}/versions", { params: { path: { document_id: id } } })),
+  });
+}
+
+export function useVersion(id: string, version: number | null) {
+  return useQuery({
+    queryKey: keys.version(id, version ?? 0),
+    queryFn: () =>
+      unwrap(
+        api.GET("/api/documents/{document_id}/versions/{version}", {
+          params: { path: { document_id: id, version: version ?? 0 } },
+        }),
+      ),
+    enabled: version !== null,
+  });
+}
+
+export function useAttention(enabled = true) {
+  return useQuery({
+    queryKey: keys.attention,
+    queryFn: () => unwrap(api.GET("/api/admin/documents/attention")),
+    enabled,
+  });
+}
+
+export function useLatestScan() {
+  return useQuery({
+    queryKey: keys.latestScan,
+    queryFn: () => unwrap(api.GET("/api/admin/documents/scans/latest")),
+  });
+}
+
+function invalidateDocuments(qc: QueryClient, id?: string) {
+  qc.invalidateQueries({ queryKey: keys.documentsAll });
+  qc.invalidateQueries({ queryKey: keys.attention });
+  qc.invalidateQueries({ queryKey: keys.latestScan });
+  qc.invalidateQueries({ queryKey: keys.auditAll });
+  if (id) qc.invalidateQueries({ queryKey: ["document", id] });
+}
+
+export function useUpdateDocument(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Schemas["DocumentUpdateIn"]) =>
+      unwrap(
+        api.PATCH("/api/admin/documents/{document_id}", { params: { path: { document_id: id } }, body }),
+      ),
+    onSuccess: (doc) => {
+      qc.setQueryData(keys.document(id), doc);
+      invalidateDocuments(qc, id);
+    },
+  });
+}
+
+export function useRegisterDocument(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Schemas["DocumentRegisterIn"]) =>
+      unwrap(
+        api.POST("/api/admin/documents/{document_id}/register", {
+          params: { path: { document_id: id } },
+          body,
+        }),
+      ),
+    onSuccess: (doc) => {
+      qc.setQueryData(keys.document(id), doc);
+      invalidateDocuments(qc, id);
+    },
+  });
+}
+
+export function useDismissFlag(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ flagId, note }: { flagId: number; note: string }) =>
+      unwrap(
+        api.POST("/api/admin/documents/{document_id}/flags/{flag_id}/dismiss", {
+          params: { path: { document_id: id, flag_id: flagId } },
+          body: { note },
+        }),
+      ),
+    onSuccess: (doc) => {
+      qc.setQueryData(keys.document(id), doc);
+      invalidateDocuments(qc, id);
+    },
+  });
+}
+
+export function useScanDocuments() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(api.POST("/api/admin/documents/scan")),
+    onSuccess: () => invalidateDocuments(qc),
+  });
 }

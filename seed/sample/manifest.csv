@@ -1,0 +1,8 @@
+doc_id,file_name,title,owner,status,last_modified,last_reviewed,access_group
+S01,Travel_Policy_v2.md,Travel Policy v2,Alex Morgan,Approved,2026-08-04,2026-08-04,Everyone
+S02,Travel_Policy_v3_DRAFT.md,Travel Policy v3,Alex Morgan,Draft,2026-11-10,,Everyone
+S03,Travel_Policy_2023.md,Travel Policy,,Outdated,2023-02-01,2023-02-01,Everyone
+S04,Supplier_Setup_Form.md,Supplier Setup Form,,,2025-04-12,,Operations
+S05,Payroll_Calendar_2027.md,Payroll Calendar 2027,Sam Patel,Approved,2026-10-15,2026-10-15,Finance
+S06,Operations_Weekly_2026-11-02.md,Operations Weekly Nov 2 2026,Operations,Reference,2026-11-02,,Operations
+S07,IT_Help_Desk.md,IT Help Desk,Alex Morgan,Approved,2026-09-01,2026-09-01,Everyone

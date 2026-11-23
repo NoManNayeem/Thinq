@@ -147,7 +147,8 @@
   --destructive: #b91c1c;
   --destructive-strong: #b91c1c;
   --success: #047857;
-  --warning: #b45309;
+  /* amber-800: keeps 4.5:1 on its own 10% tint */
+  --warning: #92400e;
   --info: #1d4ed8;
 }
 

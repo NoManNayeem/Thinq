@@ -57,6 +57,24 @@ const ACTIONS: Record<string, { label: string; describe?: Describe }> = {
     label: "Group deleted",
     describe: (e) => `${str(e.details.members_removed ?? 0)} memberships removed`,
   },
+  "document.updated": {
+    label: "Document details changed",
+    describe: (e) => Object.keys(e.details).join(", "),
+  },
+  "document.access_changed": {
+    label: "Document access changed",
+    describe: (e) => `${str(e.details.from)} → ${str(e.details.to)}`,
+  },
+  "document.registered": {
+    label: "Document registered",
+    describe: (e) => `Shared with ${str(e.details.access_group)}`,
+  },
+  "document.flag_dismissed": { label: "Document flag dismissed", describe: (e) => str(e.details.note) },
+  "documents.scanned": {
+    label: "Sources scanned",
+    describe: (e) =>
+      `${str(e.details.created)} new · ${str(e.details.updated)} changed · ${str(e.details.missing)} missing`,
+  },
   "system.seeded": {
     label: "Initial data loaded",
     describe: (e) => `${str(e.details.users)} users from ${str(e.details.source)}`,
@@ -87,6 +105,7 @@ export const AUDIT_FILTERS = [
   { value: "user.", label: "Users" },
   { value: "membership.", label: "Group membership" },
   { value: "group.", label: "Groups" },
+  { value: "document", label: "Documents" },
   { value: "system.", label: "System" },
 ] as const;
 

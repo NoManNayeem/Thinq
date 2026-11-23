@@ -1,6 +1,10 @@
 import {
   BanIcon,
   DatabaseIcon,
+  FileLockIcon,
+  FilePenIcon,
+  FileSearchIcon,
+  FlagOffIcon,
   KeyRoundIcon,
   LogInIcon,
   LogOutIcon,
@@ -9,6 +13,7 @@ import {
   RotateCcwIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
+  StampIcon,
   UserMinusIcon,
   UserPlusIcon,
   UsersRoundIcon,
@@ -33,6 +38,11 @@ const ICONS: Record<string, LucideIcon> = {
   "group.updated": PencilIcon,
   "group.deleted": XCircleIcon,
   "system.seeded": DatabaseIcon,
+  "document.updated": FilePenIcon,
+  "document.access_changed": FileLockIcon,
+  "document.registered": StampIcon,
+  "document.flag_dismissed": FlagOffIcon,
+  "documents.scanned": FileSearchIcon,
 };
 
 export function auditIcon(action: string): LucideIcon {

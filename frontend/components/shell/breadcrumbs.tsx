@@ -13,9 +13,19 @@ export function crumbsFor(pathname: string): Crumb[] {
   const parts = pathname.split("/").filter(Boolean);
   if (parts.length === 0) return [{ label: "Overview" }];
   if (parts[0] === "profile") return [{ label: "Your profile" }];
+  if (parts[0] === "library") {
+    return parts[1]
+      ? [{ label: "Library", href: "/library" }, { label: "Document" }]
+      : [{ label: "Library" }];
+  }
   if (parts[0] === "admin") {
     const section = parts[1];
-    const labels: Record<string, string> = { users: "Users", groups: "Groups", audit: "Audit log" };
+    const labels: Record<string, string> = {
+      users: "Users",
+      groups: "Groups",
+      audit: "Audit log",
+      attention: "Needs attention",
+    };
     const detail: Record<string, string> = { users: "User details", groups: "Group details" };
     const crumbs: Crumb[] = [{ label: "Administration" }];
     if (section && labels[section]) {

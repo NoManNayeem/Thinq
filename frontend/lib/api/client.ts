@@ -13,6 +13,13 @@ export type AuditEvent = Schemas["AuditEventOut"];
 export type DemoUser = Schemas["DemoUserOut"];
 export type Health = Schemas["HealthOut"];
 export type Role = User["role"];
+export type DocumentSummary = Schemas["DocumentSummary"];
+export type DocumentDetail = Schemas["DocumentDetail"];
+export type DocumentFlag = Schemas["FlagOut"];
+export type DocumentStatus = DocumentSummary["status"];
+export type DocumentVersion = Schemas["VersionOut"];
+export type AttentionItem = Schemas["AttentionItem"];
+export type DocumentScan = Schemas["ScanOut"];
 
 /**
  * Same-origin client. The browser talks only to the Next.js server, which forwards

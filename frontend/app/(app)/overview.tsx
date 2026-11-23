@@ -3,14 +3,15 @@
 import {
   ActivityIcon,
   ArrowRightIcon,
+  FlagIcon,
   KeyRoundIcon,
+  LibraryIcon,
   type LucideIcon,
   ShieldCheckIcon,
   UserCircleIcon,
   UserPlusIcon,
   UsersIcon,
   UsersRoundIcon,
-  UserXIcon,
 } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
@@ -18,9 +19,9 @@ import { AuditTimeline } from "@/components/admin/audit-list";
 import { GroupChip, RoleBadge } from "@/components/common/badges";
 import { Callout, DescriptionList, IconTile, Page, PageHeader, Panel } from "@/components/common/page";
 import { useCurrentUser } from "@/components/shell/current-user";
-import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button-link";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAudit, useGroups, useUsers } from "@/lib/api/queries";
+import { useAttention, useAudit, useDocuments, useGroups, useUsers } from "@/lib/api/queries";
 import { dateTime, greeting } from "@/lib/format";
 
 export function Overview() {
@@ -39,10 +40,10 @@ export function Overview() {
         }
         actions={
           isAdmin && (
-            <Button render={<Link href="/admin/users?add=1" />} nativeButton={false}>
+            <ButtonLink href="/admin/users?add=1">
               <UserPlusIcon />
               Add user
-            </Button>
+            </ButtonLink>
           )
         }
       />
@@ -73,6 +74,7 @@ function AccessPanel() {
           </li>
         ))}
       </ul>
+      <LibraryLink />
       <div className="px-4 pb-4 md:px-6 md:pb-6">
         <Callout icon={ShieldCheckIcon}>
           Access is checked every time you use Thinq. If an Admin changes your groups, it applies to your very
@@ -90,10 +92,10 @@ function AccountPanel() {
       icon={UserCircleIcon}
       title="Your account"
       actions={
-        <Button variant="outline" size="sm" render={<Link href="/profile" />} nativeButton={false}>
+        <ButtonLink href="/profile" variant="outline" size="sm">
           View profile
           <ArrowRightIcon />
-        </Button>
+        </ButtonLink>
       }
     >
       <DescriptionList
@@ -144,14 +146,14 @@ function Stat({
 function OrgStats() {
   const active = useUsers({ status: "active", limit: 1 });
   const admins = useUsers({ role: "admin", status: "active", limit: 1 });
-  const inactive = useUsers({ status: "inactive", limit: 1 });
+  const attention = useAttention();
   const groups = useGroups();
   return (
     <section aria-label="Organization at a glance" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <Stat label="Active users" value={active.data?.total} icon={UsersIcon} href="/admin/users" />
       <Stat label="Admins" value={admins.data?.total} icon={ShieldCheckIcon} href="/admin/users" />
       <Stat label="Groups" value={groups.data?.length} icon={UsersRoundIcon} href="/admin/groups" />
-      <Stat label="Deactivated" value={inactive.data?.total} icon={UserXIcon} href="/admin/users" />
+      <Stat label="Needs attention" value={attention.data?.length} icon={FlagIcon} href="/admin/attention" />
     </section>
   );
 }
@@ -164,13 +166,37 @@ function RecentActivity() {
       title="Recent activity"
       description="Sign-ins and access changes."
       actions={
-        <Button variant="outline" size="sm" render={<Link href="/admin/audit" />} nativeButton={false}>
+        <ButtonLink href="/admin/audit" variant="outline" size="sm">
           Audit log
           <ArrowRightIcon />
-        </Button>
+        </ButtonLink>
       }
     >
       <AuditTimeline events={audit.data?.items} loading={audit.isPending} />
     </Panel>
+  );
+}
+
+function LibraryLink() {
+  const docs = useDocuments({ limit: 1 });
+  const total = docs.data ? Object.values(docs.data.status_counts).reduce((a, b) => a + b, 0) : undefined;
+  return (
+    <div className="flex items-center justify-between gap-4 border-t px-4 py-4 md:px-6">
+      <span className="flex items-center gap-2 text-sm">
+        <LibraryIcon className="size-4 text-muted-foreground" aria-hidden />
+        {total === undefined ? (
+          <Skeleton className="h-4 w-40" />
+        ) : (
+          <span>
+            You can see <span className="font-semibold tabular">{total}</span> document
+            {total === 1 ? "" : "s"}
+          </span>
+        )}
+      </span>
+      <ButtonLink href="/library" variant="outline" size="sm">
+        Open library
+        <ArrowRightIcon />
+      </ButtonLink>
+    </div>
   );
 }

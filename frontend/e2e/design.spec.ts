@@ -1,14 +1,15 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { ADMIN_EMAIL, ADMIN_SCREENS, settled, signInWithPassword } from "./helpers";
+import { ADMIN_EMAIL, ADMIN_SCREENS, animationsDone, settled, signInWithPassword } from "./helpers";
 
 /** Accessibility (including colour contrast) and the one-primary-action rule, on every screen, in both themes. */
 for (const scheme of ["light", "dark"] as const) {
   test.describe(`${scheme} theme`, () => {
-    test.use({ colorScheme: scheme });
+    // Motion is turned off so colour checks see final, not mid-animation, states.
+    test.use({ colorScheme: scheme, reducedMotion: "reduce" });
 
-    test("sign-in and status pages", async ({ page }) => {
-      for (const path of ["/sign-in", "/status"]) {
+    test("landing, sign-in and status pages", async ({ page }) => {
+      for (const path of ["/", "/sign-in", "/status"]) {
         await page.goto(path);
         await settled(page);
         await expectAccessible(page, path);
@@ -44,6 +45,7 @@ for (const scheme of ["light", "dark"] as const) {
       await page.goto("/admin/users");
       await page.getByRole("button", { name: "Add user" }).click();
       await expect(page.getByRole("dialog")).toBeVisible();
+      await animationsDone(page);
       await expectAccessible(page, "add user dialog");
     });
   });

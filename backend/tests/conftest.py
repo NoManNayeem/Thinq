@@ -5,7 +5,9 @@ The database named in the URL is dropped and recreated once per test session.
 """
 
 import os
-from collections.abc import AsyncIterator, Callable, Coroutine
+import shutil
+from collections.abc import AsyncIterator, Callable, Coroutine, Iterator
+from pathlib import Path
 from typing import Any
 
 import psycopg
@@ -21,6 +23,7 @@ from app.core.security import hash_password
 from app.main import create_app
 from app.models import Group, Membership, Role, User
 from app.prestart import alembic_config
+from app.services.documents.importer import scan_documents
 
 TEST_DATABASE_URL = os.environ.get(
     "THINQ_TEST_DATABASE_URL", "postgresql+psycopg://thinq:thinq@localhost:55432/thinq_test"
@@ -71,7 +74,12 @@ def maker(app: FastAPI) -> async_sessionmaker[AsyncSession]:
 async def clean_db(app: FastAPI, maker: async_sessionmaker[AsyncSession]) -> AsyncIterator[None]:
     yield
     async with maker() as db:
-        await db.execute(text("TRUNCATE audit_events, user_sessions, memberships, users CASCADE"))
+        await db.execute(
+            text(
+                "TRUNCATE document_flags, document_versions, document_scans, documents, "
+                "audit_events, user_sessions, memberships, users CASCADE"
+            )
+        )
         await db.execute(text("DELETE FROM groups WHERE NOT is_system"))
         await db.commit()
     if hasattr(app.state, "login_throttle"):
@@ -167,3 +175,46 @@ async def org(make_group: MakeGroup, make_user: MakeUser) -> dict[str, Any]:
         "Tariq Haddad", role=Role.ADMIN.value, groups=[ops, finance], title="Engineering Lead"
     )
     return {"ops": ops, "finance": finance, "nadia": nadia, "priya": priya, "tariq": tariq}
+
+
+SAMPLE_SEED = Path(__file__).resolve().parents[2] / "seed" / "sample"
+
+
+@pytest.fixture
+def seed_copy(tmp_path: Path, app: FastAPI) -> Iterator[Path]:
+    """A writable copy of seed/sample, wired in as the app's seed folder."""
+    target = tmp_path / "seed"
+    shutil.copytree(SAMPLE_SEED, target)
+    settings = app.state.settings
+    previous = settings.seed_dir
+    settings.seed_dir = target
+    yield target
+    settings.seed_dir = previous
+
+
+@pytest.fixture
+async def sample_org(make_group: MakeGroup, make_user: MakeUser) -> dict[str, Any]:
+    """People and groups matching seed/sample, plus an Admin who isn't in Finance."""
+    operations = await make_group("Operations")
+    finance = await make_group("Finance")
+    dana = await make_user("Dana Lee", groups=[operations])
+    sam = await make_user("Sam Patel", groups=[finance])
+    alex = await make_user("Alex Morgan", role=Role.ADMIN.value, groups=[operations, finance])
+    riley = await make_user("Riley Ops", role=Role.ADMIN.value, groups=[operations])
+    return {
+        "operations": operations,
+        "finance": finance,
+        "dana": dana,
+        "sam": sam,
+        "alex": alex,
+        "riley": riley,
+    }
+
+
+@pytest.fixture
+def scan(maker: async_sessionmaker[AsyncSession]) -> Callable[[Path], Coroutine[Any, Any, Any]]:
+    async def _scan(root: Path) -> Any:
+        async with maker() as db, db.begin():
+            return await scan_documents(db, root, actor=None)
+
+    return _scan

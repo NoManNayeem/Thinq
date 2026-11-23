@@ -11,12 +11,12 @@ import {
   RefreshCwIcon,
   ServerIcon,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/brand";
 import { StatusDot } from "@/components/common/badges";
 import { IconTile, Panel } from "@/components/common/page";
 import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useHealth } from "@/lib/api/queries";
 import { relativeTime } from "@/lib/format";
@@ -90,10 +90,10 @@ export function StatusScreen() {
       <header className="border-b bg-background">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 md:px-8">
           <Logo />
-          <Button variant="ghost" render={<Link href="/" />} nativeButton={false}>
+          <ButtonLink href="/" variant="ghost">
             <ArrowLeftIcon />
             Back to Thinq
-          </Button>
+          </ButtonLink>
         </div>
       </header>
 

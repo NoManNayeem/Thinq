@@ -46,10 +46,56 @@ export function uniqueSuffix() {
 }
 
 /** Every screen a signed-in Admin can reach, for checks that should hold everywhere. */
-export const ADMIN_SCREENS = ["/", "/profile", "/admin/users", "/admin/groups", "/admin/audit"] as const;
+export const ADMIN_SCREENS = [
+  "/",
+  "/library",
+  "/profile",
+  "/admin/attention",
+  "/admin/users",
+  "/admin/groups",
+  "/admin/audit",
+] as const;
 
 /** Wait until loading skeletons and the progress bar have gone. */
 export async function settled(page: Page) {
   await page.waitForLoadState("networkidle");
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+  await animationsDone(page);
+}
+
+/** Wait for entry animations (dialogs fade in) so checks see final colours. */
+export async function animationsDone(page: Page) {
+  await page.waitForFunction(() =>
+    document
+      .getAnimations()
+      .filter((a) => a.effect?.getTiming().iterations !== Number.POSITIVE_INFINITY)
+      .every((a) => a.playState !== "running"),
+  );
+}
+
+/** Documents in the seed data used by the document tests. Defaults match seed/sample. */
+export const DOCS = {
+  /** In MEMBER.otherGroup only. */
+  restrictedTitle: process.env.E2E_RESTRICTED_DOC ?? "Payroll Calendar 2027",
+  /** A phrase that appears only in the restricted document. */
+  restrictedPhrase: process.env.E2E_RESTRICTED_PHRASE ?? "Bonus payments",
+  unregisteredFile: process.env.E2E_UNREGISTERED_FILE ?? "travel policy (1).md",
+  draftTitle: process.env.E2E_DRAFT_DOC ?? "Travel Policy v3",
+  /** A document containing a Markdown table. */
+  tableTitle: process.env.E2E_TABLE_DOC ?? "IT Help Desk",
+};
+
+export async function documentId(api: APIRequestContext, title: string): Promise<string> {
+  const res = await api.get("/api/documents", { params: { q: title, limit: 50 } });
+  const body = (await res.json()) as { items: { id: string; title: string }[] };
+  const doc = body.items.find((d) => d.title === title);
+  if (!doc) throw new Error(`No document titled "${title}" is visible to this user`);
+  return doc.id;
+}
+
+export async function groupId(api: APIRequestContext, name: string): Promise<string> {
+  const groups = (await (await api.get("/api/admin/groups")).json()) as { id: string; name: string }[];
+  const group = groups.find((g) => g.name === name);
+  if (!group) throw new Error(`No group named "${name}"`);
+  return group.id;
 }

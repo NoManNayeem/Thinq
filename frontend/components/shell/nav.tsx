@@ -2,7 +2,9 @@
 
 import {
   ActivityIcon,
+  FlagIcon,
   LayoutDashboardIcon,
+  LibraryIcon,
   type LucideIcon,
   ScrollTextIcon,
   UserCircleIcon,
@@ -12,16 +14,19 @@ import {
 import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAttention } from "@/lib/api/queries";
 import { cn } from "@/lib/utils";
 
-type NavItem = { href: Route; label: string; icon: LucideIcon; exact?: boolean };
+type NavItem = { href: Route; label: string; icon: LucideIcon; exact?: boolean; badge?: "attention" };
 
 export const WORKSPACE_NAV: NavItem[] = [
   { href: "/", label: "Overview", icon: LayoutDashboardIcon, exact: true },
+  { href: "/library", label: "Library", icon: LibraryIcon },
   { href: "/profile", label: "Your profile", icon: UserCircleIcon },
 ];
 
 export const ADMIN_NAV: NavItem[] = [
+  { href: "/admin/attention", label: "Needs attention", icon: FlagIcon, badge: "attention" },
   { href: "/admin/users", label: "Users", icon: UsersIcon },
   { href: "/admin/groups", label: "Groups", icon: UsersRoundIcon },
   { href: "/admin/audit", label: "Audit log", icon: ScrollTextIcon },
@@ -69,10 +74,23 @@ export function NavSection({
               />
             )}
             <item.icon className={cn("size-5 shrink-0", active && "text-ink-accent")} aria-hidden />
-            {item.label}
+            <span className="flex-1">{item.label}</span>
+            {item.badge === "attention" && <AttentionCount />}
           </Link>
         );
       })}
     </div>
+  );
+}
+
+function AttentionCount() {
+  const attention = useAttention();
+  const n = attention.data?.length ?? 0;
+  if (!n) return null;
+  return (
+    <span className="rounded-md bg-ink-active px-2 font-medium text-ink-foreground text-xs tabular">
+      {n}
+      <span className="sr-only"> documents need attention</span>
+    </span>
   );
 }

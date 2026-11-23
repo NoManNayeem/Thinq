@@ -1,7 +1,6 @@
 import { ArrowLeftIcon, CompassIcon } from "lucide-react";
-import Link from "next/link";
 import { Logo } from "@/components/brand";
-import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button-link";
 
 export default function NotFound() {
   return (
@@ -17,10 +16,10 @@ export default function NotFound() {
             The page you&apos;re looking for doesn&apos;t exist or has moved.
           </p>
         </div>
-        <Button render={<Link href="/" />} nativeButton={false}>
+        <ButtonLink href="/">
           <ArrowLeftIcon />
           Back to Thinq
-        </Button>
+        </ButtonLink>
       </div>
     </main>
   );

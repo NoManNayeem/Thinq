@@ -4,7 +4,7 @@
 
 Most "company brains" fail the same way: they search everything and confidently repeat whatever they find, whether that's an unapproved draft, a retired form, or a document the person was never allowed to see. Thinq starts from the opposite end. It knows who owns each document, whether it is approved, and who may see it, and it checks access on every request before anything reaches the AI.
 
-> **Status:** early development. User management, access groups and the platform foundation are in place. Document ingestion, trust ranking and the assistant itself are next.
+> **Status:** early development. User management, access groups, and the document library with access control and data-quality checks are in place. Trust ranking and the assistant itself are next.
 
 ## What works today
 
@@ -13,6 +13,8 @@ Most "company brains" fail the same way: they search everything and confidently 
 - **Instant access changes:** a user's groups and role are re-read from the database on every request. When an Admin removes someone from a group, it applies to that person's very next request, with no sign-out and no waiting for a sync.
 - **Safeguards:** Admins can't demote or deactivate themselves, and the last Admin can't be removed. Deactivating a user ends their sessions immediately.
 - **Audit log:** every sign-in and every change to people, roles and groups is recorded with who did it and when.
+- **Document library:** documents and a manifest are imported from a folder, re-scanned on every start, and versioned when they change. A person only sees documents shared with one of their groups; everything else returns "not found", including search and version history.
+- **Data-quality checks:** unregistered files, near-duplicate copies, missing owners or statuses, owners that are teams, confidential files shared too widely, text aimed at AI assistants, and manifest drift are flagged in an Admin "Needs attention" queue with one-click fixes.
 - **System status:** a public page with live web, API and database health, plus a streaming check.
 
 ## Quick start
@@ -35,7 +37,7 @@ Open <http://localhost:3000>. The sample organization in `seed/sample` is loaded
 
 Demo mode is on in `.env.example`, so you can also sign in with one click. **Turn it off (`THINQ_DEMO_MODE=false`) and change the seed password for any real deployment.**
 
-To load your own people, point `THINQ_SEED_PATH` at a folder containing a `users.csv` ([format](seed/README.md)) before the first start.
+To load your own people and documents, point `THINQ_SEED_PATH` at a folder containing `users.csv`, `manifest.csv` and a `documents/` folder ([format](seed/README.md)).
 
 ## Architecture
 
@@ -85,4 +87,4 @@ All settings are environment variables. See [`.env.example`](.env.example) for t
 
 ## License
 
-[Apache License 2.0](LICENSE)
+[Apache License 2.0](LICENSE). Illustrations on the public pages are [Open Doodles](https://www.opendoodles.com) by Pablo Stanley, CC0.
