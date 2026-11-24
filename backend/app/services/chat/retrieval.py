@@ -195,6 +195,13 @@ class RetrievalResult:
     # Drafts that matched but ranked below the cited sources: worth a warning.
     draft_matches: list[Document] = field(default_factory=list)
     candidates: list[dict[str, object]] = field(default_factory=list)
+    # Who owns the process the question is about, when a visible document says so.
+    owner_hint: dict[str, str] | None = None
+    excluded: dict[str, int] = field(default_factory=dict)
+
+
+def _has_injected(block: str, injected: set[str]) -> bool:
+    return any(line.strip()[:240] in injected for line in block.splitlines())
 
 
 def _clip(text: str) -> str:
@@ -206,7 +213,7 @@ def _semantic_excerpt(chunk: str, injected: set[str]) -> str:
     parts = [
         b
         for b in blocks(chunk)
-        if not any(line in b for line in injected) and not (b.startswith("# ") and "\n" not in b)
+        if not _has_injected(b, injected) and not (b.startswith("# ") and "\n" not in b)
     ]
     return "\n\n".join(parts).strip()
 
@@ -236,7 +243,8 @@ async def retrieve(
             )
         ).all()
     )
-    usable = [d for d in docs if d.is_registered]
+    # Missing files are out of answers at once; the library still shows them, marked missing.
+    usable = [d for d in docs if d.is_registered and d.source_present]
     query = set(tokens(question))
     sem = _semantic_relevance(semantic)
     if (not query and not sem) or not usable:
@@ -257,7 +265,7 @@ async def retrieve(
         doc_blocks = blocks(doc.content)
         body = [b for b in doc_blocks if not b.startswith("# ")] or doc_blocks
         for block in body:
-            if any(line in block for line in injected):
+            if _has_injected(block, injected):
                 continue  # never quote text aimed at an AI
             own = sum(idf[t] for t in query if t in set(tokens(block)))
             covered = sum(idf[t] for t in query if t in set(tokens(block)) | title_terms)
@@ -279,6 +287,7 @@ async def retrieve(
             if chunk and (lexical < MIN_COVERAGE or not excerpt_text):
                 excerpt_text = chunk  # the passage the semantic search actually matched
         candidate: dict[str, object] = {
+            "id": str(doc.id),
             "title": doc.title,
             "status": doc.status,
             "relevance": round(relevance, 3),
@@ -288,10 +297,13 @@ async def retrieve(
             candidate["semantic"] = round(semantic_match[0], 3) if semantic_match else None
         candidates.append(candidate)
         if relevance < MIN_COVERAGE or not excerpt_text:
+            candidate["decision"] = "below_threshold"
             continue
         if doc.status == DocumentStatus.OUTDATED.value:
+            candidate["decision"] = "outdated_excluded"
             outdated.append(doc)
             continue
+        candidate["decision"] = "eligible"
         weight = TRUST_WEIGHT.get(doc.status, 0.5)
         excerpt = _clip(excerpt_text)
         scored.append(
@@ -303,10 +315,69 @@ async def retrieve(
     drafts = [
         p.document for p in scored[MAX_SOURCES:] if p.document.status == DocumentStatus.DRAFT.value
     ]
+    cited = {str(p.document.id): i for i, p in enumerate(scored[:MAX_SOURCES], start=1)}
+    for c in candidates:
+        if c.get("decision") == "eligible":
+            c["decision"] = "cited" if c["id"] in cited else "ranked_lower"
+            if c["id"] in cited:
+                c["rank"] = cited[str(c["id"])]
+        c["trust_weight"] = TRUST_WEIGHT.get(str(c["status"]), 0.0)
     return RetrievalResult(
         passages=scored[:MAX_SOURCES],
         searched=len(usable),
         outdated_matches=outdated,
         draft_matches=drafts,
         candidates=candidates[:10],
+        owner_hint=owner_hint(usable, query, idf, scored[:MAX_SOURCES]),
+        excluded={
+            "unregistered": sum(1 for d in docs if not d.is_registered),
+            "missing": sum(1 for d in docs if d.is_registered and not d.source_present),
+        },
     )
+
+
+_TABLE_ROW = re.compile(r"^\s*\|(.+)\|\s*$")
+
+
+def owner_hint(
+    usable: list[Document],
+    query: set[str],
+    idf: dict[str, float],
+    cited: list[Passage],
+) -> dict[str, str] | None:
+    """Who owns the process a question is about, from a visible "process owners" style table
+    (a Markdown table with an Owner column). Lets an answer point to the right person, including
+    when it has nothing to say."""
+    context = set(query)
+    for p in cited[:1]:
+        context |= set(tokens(p.document.title))
+    best: tuple[float, dict[str, str]] | None = None
+    for doc in usable:
+        if doc.status not in (DocumentStatus.APPROVED.value, DocumentStatus.REFERENCE.value):
+            continue
+        rows = [m.group(1) for line in doc.content.splitlines() if (m := _TABLE_ROW.match(line))]
+        if len(rows) < 3:
+            continue
+        header = [c.strip().lower() for c in rows[0].split("|")]
+        if "owner" not in header or len(header) < 2:
+            continue
+        owner_col = header.index("owner")
+        topic_col = 0 if owner_col != 0 else 1
+        for row in rows[2:]:
+            cells = [c.strip() for c in row.split("|")]
+            if len(cells) <= max(owner_col, topic_col):
+                continue
+            topic, owner = cells[topic_col], cells[owner_col]
+            overlap = set(tokens(topic)) & context
+            score = sum(idf.get(t, 0.5) for t in overlap)
+            if score > 0 and (best is None or score > best[0]):
+                best = (
+                    score,
+                    {
+                        "topic": topic,
+                        "owner": owner,
+                        "document_id": str(doc.id),
+                        "title": doc.title,
+                    },
+                )
+    return best[1] if best else None

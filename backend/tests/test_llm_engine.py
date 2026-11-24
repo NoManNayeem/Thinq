@@ -131,3 +131,88 @@ async def test_history_is_sent_and_document_text_is_framed(
         if isinstance(p, UserPromptPart)
     )
     assert ai.prompt().count("</source>") == ai.prompt().count("<source ")
+
+
+async def test_a_refusal_always_says_who_to_ask(
+    ready: dict[str, Any], app: FastAPI, client_for: MakeClient
+) -> None:
+    """When the model can't answer from the sources, the owner from a visible owners table
+    is added if the model didn't name them."""
+    from tests.conftest import PASSWORD  # noqa: F401
+
+    alex = await client_for(ready["alex"])
+    table = (
+        "# Process Owners\n\n| Process | Owner |\n|---|---|\n"
+        "| Travel booking | Alex Morgan, IT Lead |\n| Payroll | Sam Patel, Finance Manager |\n"
+    )
+    r = await alex.post(
+        "/api/admin/documents/upload",
+        json={
+            "filename": "Owners.md",
+            "content": table,
+            "access_group_id": str(ready["operations"].id),
+            "status": "approved",
+        },
+    )
+    assert r.status_code == 201
+    settings = app.state.settings
+    settings.llm_model = "test"
+    recorder = Recorder("I couldn't find it in the documents you can access.")
+    agent = _agent(model_names(settings))
+    try:
+        with agent.override(model=FunctionModel(stream_function=recorder.stream)):
+            dana = await client_for(ready["dana"])
+            out = await ask(
+                dana, await new_chat(dana), "What is the travel booking deadline policy?"
+            )
+    finally:
+        settings.llm_model = ""
+    assert "Alex Morgan" in out["text"]
+    assert "travel booking" in out["text"].lower()
+
+
+async def test_a_refusal_is_stored_without_sources(
+    ready: dict[str, Any], app: FastAPI, client_for: MakeClient
+) -> None:
+    settings = app.state.settings
+    settings.llm_model = "test"
+    recorder = Recorder("I couldn't find it in the documents you can access.")
+    agent = _agent(model_names(settings))
+    try:
+        with agent.override(model=FunctionModel(stream_function=recorder.stream)):
+            dana = await client_for(ready["dana"])
+            chat = await new_chat(dana)
+            out = await ask(dana, chat, "How do I get a new laptop?")
+    finally:
+        settings.llm_model = ""
+    # Sources were sent first, then replaced with none once the answer turned out to be a refusal.
+    sources_events = [
+        e for e in out["events"] if isinstance(e, dict) and e["type"] == "data-sources"
+    ]
+    assert sources_events[0]["data"]["items"] and sources_events[-1]["data"]["items"] == []
+    stored = (await dana.get(f"/api/chat/conversations/{chat}")).json()["messages"][-1]
+    assert stored["sources"] == [] and stored["notices"] == []
+
+
+async def test_feedback_goes_only_to_documents_the_answer_cited(
+    ready: dict[str, Any], app: FastAPI, client_for: MakeClient
+) -> None:
+    settings = app.state.settings
+    settings.llm_model = "test"
+    recorder = Recorder("Use the IT request form [1].")
+    agent = _agent(model_names(settings))
+    try:
+        with agent.override(model=FunctionModel(stream_function=recorder.stream)):
+            dana = await client_for(ready["dana"])
+            out = await ask(
+                dana, await new_chat(dana), "How do I get a new laptop or software access?"
+            )
+    finally:
+        settings.llm_model = ""
+    assert len(out["sources"]) >= 1
+    await dana.put(
+        f"/api/chat/messages/{out['message_id']}/feedback",
+        json={"rating": "down", "reason": "wrong"},
+    )
+    mine = (await dana.get("/api/feedback/mine")).json()
+    assert [m["document_title"] for m in mine] == [out["sources"][0]["title"]]

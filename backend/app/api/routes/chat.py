@@ -1,3 +1,4 @@
+import time
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -9,14 +10,16 @@ from fastapi import APIRouter, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import DbDep, Principal, PrincipalDep, client_ip
-from app.core.errors import AppError, NotFound
+from app.core.errors import AppError, NotFound, TooManyRequests
 from app.models import (
     ChatMessage,
     Conversation,
     Document,
     DocumentStatus,
+    FeedbackItem,
     MessageFeedback,
     MessageSource,
 )
@@ -35,7 +38,9 @@ from app.schemas.chat import (
     SourceOut,
 )
 from app.schemas.common import error_responses
+from app.schemas.feedback import ReportOutcome
 from app.services import audit
+from app.services import feedback as feedback_service
 from app.services.chat.access import engine_context, get_own_conversation, withheld_message_ids
 from app.services.chat.engines import get_engine
 from app.services.chat.retrieval import retrieve
@@ -54,11 +59,59 @@ WITHHELD = NoticeOut(
 )
 
 
-def _retrieval_for(principal: Principal, retrieval: dict[str, Any]) -> dict[str, Any]:
-    """Members see counts; Admins also see the ranked candidates (titles they can already see)."""
-    if principal.user.is_admin:
+REFUSAL_MARKERS = ("couldn't find", "could not find", "can't find", "cannot find")
+
+
+def is_refusal(text: str) -> bool:
+    """An answer that says nothing it may use answers the question (checked on its opening)."""
+    head = text.strip().lower()[:160]
+    return any(m in head for m in REFUSAL_MARKERS)
+
+
+def _check_question_rate(request: Request, principal: Principal) -> None:
+    """Questions cost money and compute: at most N per person per minute."""
+    limit = request.app.state.settings.chat_questions_per_minute
+    if limit <= 0:
+        return
+    store: dict[uuid.UUID, list[float]] | None = getattr(request.app.state, "question_times", None)
+    if store is None:
+        store = request.app.state.question_times = {}
+    now = time.monotonic()
+    recent = [t for t in store.get(principal.user.id, []) if now - t < 60]
+    if len(recent) >= limit:
+        raise TooManyRequests(
+            "You're asking very quickly. Wait a moment and try again.",
+            retry_after_s=max(1, int(60 - (now - recent[0]))),
+        )
+    recent.append(now)
+    store[principal.user.id] = recent
+
+
+def _usage(engine: object, key: str) -> Any:
+    usage = getattr(engine, "usage", None)
+    return usage.get(key) if isinstance(usage, dict) else None
+
+
+def _retrieval_for(
+    principal: Principal, retrieval: dict[str, Any], visible: set[str] | None = None
+) -> dict[str, Any]:
+    """Members see counts; Admins also see the ranked candidates, limited to documents they can
+    see now (``visible``, when reading a stored answer)."""
+    if not principal.user.is_admin:
+        return {k: v for k, v in retrieval.items() if k != "candidates"}
+    if visible is None:
         return retrieval
-    return {k: v for k, v in retrieval.items() if k != "candidates"}
+    candidates = [c for c in retrieval.get("candidates", []) if str(c.get("id")) in visible]
+    return {**retrieval, "candidates": candidates}
+
+
+def _notices_for(stored: list[dict[str, Any]], visible: set[str]) -> list[NoticeOut]:
+    """Notices name documents; keep only those whose documents the reader can still see."""
+    return [
+        NoticeOut(kind=n["kind"], message=n["message"])
+        for n in stored
+        if all(d in visible for d in n.get("documents", []))
+    ]
 
 
 def _source_out(s: MessageSource) -> SourceOut:
@@ -92,6 +145,13 @@ async def _messages_out(
             )
         ).all()
     }
+    reports = await report_outcomes(db, principal, [m.id for m in messages])
+    visible = {
+        str(i)
+        for i in (
+            await db.scalars(visible_documents(principal).with_only_columns(Document.id))
+        ).all()
+    }
     out: list[ChatMessageOut] = []
     for m in messages:
         withheld = m.id in hidden
@@ -105,12 +165,62 @@ async def _messages_out(
                 created_at=m.created_at,
                 withheld=withheld,
                 sources=[] if withheld else [_source_out(s) for s in m.sources],
-                notices=[WITHHELD] if withheld else [NoticeOut(**n) for n in m.notices],
-                retrieval={} if withheld else _retrieval_for(principal, m.retrieval),
-                feedback=FeedbackOut(rating=fb.rating, reason=fb.reason, comment=fb.comment)
+                notices=[WITHHELD] if withheld else _notices_for(m.notices, visible),
+                retrieval={} if withheld else _retrieval_for(principal, m.retrieval, visible),
+                feedback=FeedbackOut(
+                    rating=fb.rating,
+                    reason=fb.reason,
+                    comment=fb.comment,
+                    report=reports.get(m.id),
+                )
                 if fb
                 else None,
             )
+        )
+    return out
+
+
+async def report_outcomes(
+    db: AsyncSession, principal: Principal, message_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, ReportOutcome]:
+    """What happened to this person's reports on these answers: open until every item is
+    closed, then the latest resolution."""
+    if not message_ids:
+        return {}
+    rows = (
+        await db.scalars(
+            select(FeedbackItem)
+            .where(
+                FeedbackItem.message_id.in_(message_ids),
+                FeedbackItem.reporter_id == principal.user.id,
+                FeedbackItem.state != "withdrawn",
+            )
+            .options(selectinload(FeedbackItem.assignee), selectinload(FeedbackItem.resolved_by))
+            .order_by(FeedbackItem.created_at)
+        )
+    ).all()
+    grouped: dict[uuid.UUID, list[FeedbackItem]] = {}
+    for item in rows:
+        if item.message_id is not None:
+            grouped.setdefault(item.message_id, []).append(item)
+    out = {}
+    for message_id, items in grouped.items():
+        pending = [i for i in items if i.state == "open"]
+        done = sorted(
+            (i for i in items if i.state == "resolved"), key=lambda i: i.resolved_at or i.created_at
+        )
+        ref = pending[0] if pending else done[-1]
+        out[message_id] = ReportOutcome(
+            state="open" if pending else "resolved",
+            resolution=None if pending else ref.resolution,
+            resolution_note=None if pending else ref.resolution_note,
+            resolved_by_name=None
+            if pending
+            else (ref.resolved_by.name if ref.resolved_by else None),
+            resolved_at=None if pending else ref.resolved_at,
+            assigned_to=", ".join(
+                sorted({i.assignee.name if i.assignee else "Admins" for i in items})
+            ),
         )
     return out
 
@@ -128,7 +238,9 @@ async def chat_config(principal: PrincipalDep, db: DbDep, request: Request) -> C
         await db.scalars(
             visible_documents(principal)
             .where(
-                Document.is_registered.is_(True), Document.status == DocumentStatus.APPROVED.value
+                Document.is_registered.is_(True),
+                Document.source_present.is_(True),
+                Document.status == DocumentStatus.APPROVED.value,
             )
             .order_by(Document.last_reviewed.desc().nulls_last(), Document.title)
             .limit(4)
@@ -222,6 +334,7 @@ async def send_message(
     db: DbDep,
     request: Request,
 ) -> StreamingResponse:
+    _check_question_rate(request, principal)
     conversation = await get_own_conversation(db, principal, conversation_id, with_messages=True)
     now = datetime.now(UTC)
 
@@ -254,7 +367,10 @@ async def send_message(
             log.warning("semantic search unavailable", error=str(exc)[:200])
     result = await retrieve(db, principal, question, semantic)
     engine = get_engine(request.app.state.settings)
-    notices = [{"kind": n.kind, "message": n.message} for n in engine.notices(result)]
+    notices = [
+        {"kind": n.kind, "message": n.message, "documents": [str(d) for d in n.document_ids]}
+        for n in engine.notices(result)
+    ]
     sources = [
         MessageSource(
             rank=i,
@@ -286,7 +402,7 @@ async def send_message(
         db,
         actor=principal.user,
         action="chat.asked",
-        target_label=conversation.title,
+        target_label="Question",
         details={
             "conversation_id": str(conversation.id),
             "message_id": str(assistant_id),
@@ -302,6 +418,8 @@ async def send_message(
     source_payload = [_source_out(s).model_dump(mode="json") for s in sources]
     visible_retrieval = _retrieval_for(principal, retrieval)
 
+    kept: dict[str, Any] = {"sources": sources, "notices": notices}
+
     async def save(text: str, status_value: str) -> None:
         async with sessionmaker() as s:
             s.add(
@@ -313,8 +431,11 @@ async def send_message(
                     status=status_value,
                     engine=engine.name,
                     model=engine.model,
-                    notices=notices,
-                    retrieval=retrieval,
+                    input_tokens=_usage(engine, "input_tokens"),
+                    output_tokens=_usage(engine, "output_tokens"),
+                    cost_usd=_usage(engine, "cost_usd"),
+                    notices=kept["notices"],
+                    retrieval={**retrieval, "used": len(kept["sources"])},
                     sources=[
                         MessageSource(
                             **{
@@ -334,7 +455,7 @@ async def send_message(
                                 )
                             }
                         )
-                        for src in sources
+                        for src in kept["sources"]
                     ],
                 )
             )
@@ -360,6 +481,19 @@ async def send_message(
                 parts.append(chunk)
                 yield event({"type": "text-delta", "id": "text", "delta": chunk})
             yield event({"type": "text-end", "id": "text"})
+            if sources and is_refusal("".join(parts)):
+                # The answer says the sources don't answer the question, so listing them as
+                # its sources would mislead. Replace them (same part ids) and store none.
+                kept["sources"], kept["notices"] = [], []
+                yield event({"type": "data-sources", "id": "sources", "data": {"items": []}})
+                yield event({"type": "data-notices", "id": "notices", "data": {"items": []}})
+                yield event(
+                    {
+                        "type": "data-retrieval",
+                        "id": "retrieval",
+                        "data": {**visible_retrieval, "used": 0},
+                    }
+                )
             yield event({"type": "finish"})
             yield done()
             outcome = "complete"
@@ -403,17 +537,27 @@ async def give_feedback(
     message_id: uuid.UUID, body: FeedbackIn, principal: PrincipalDep, db: DbDep
 ) -> FeedbackOut:
     message = await _own_assistant_message(db, principal, message_id)
-    feedback = await db.get(MessageFeedback, (message.id, principal.user.id))
-    if feedback is None:
-        feedback = MessageFeedback(
-            message_id=message.id, user_id=principal.user.id, rating=body.rating
-        )
-        db.add(feedback)
-    feedback.rating = body.rating
-    feedback.reason = body.reason if body.rating == "down" else None
-    feedback.comment = (body.comment or "").strip() or None
+    fb = await db.get(MessageFeedback, (message.id, principal.user.id))
+    if fb is None:
+        fb = MessageFeedback(message_id=message.id, user_id=principal.user.id, rating=body.rating)
+        db.add(fb)
+    fb.rating = body.rating
+    fb.reason = body.reason if body.rating == "down" else None
+    fb.comment = (body.comment or "").strip() or None
+    await db.refresh(message, ["sources"])
+    await feedback_service.on_answer_feedback(
+        db,
+        reporter=principal.user,
+        message=message,
+        rating=body.rating,
+        reason=fb.reason,
+        comment=fb.comment,
+    )
     await db.commit()
-    return FeedbackOut(rating=body.rating, reason=feedback.reason, comment=feedback.comment)
+    reports = await report_outcomes(db, principal, [message.id])
+    return FeedbackOut(
+        rating=body.rating, reason=fb.reason, comment=fb.comment, report=reports.get(message.id)
+    )
 
 
 @router.delete(
@@ -421,7 +565,8 @@ async def give_feedback(
 )
 async def clear_feedback(message_id: uuid.UUID, principal: PrincipalDep, db: DbDep) -> None:
     message = await _own_assistant_message(db, principal, message_id)
-    feedback = await db.get(MessageFeedback, (message.id, principal.user.id))
-    if feedback is not None:
-        await db.delete(feedback)
-        await db.commit()
+    fb = await db.get(MessageFeedback, (message.id, principal.user.id))
+    if fb is not None:
+        await db.delete(fb)
+    await feedback_service.withdraw(db, reporter=principal.user, message_id=message.id)
+    await db.commit()

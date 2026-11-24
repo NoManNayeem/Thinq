@@ -5,6 +5,7 @@ person asking, so they can't see more than that person could.
 """
 
 import asyncio
+import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Protocol
@@ -26,6 +27,8 @@ STATUS_LABEL = {
 class Notice:
     kind: str
     message: str
+    # Documents the message names; a notice is only ever shown to someone who can see them all.
+    document_ids: tuple[uuid.UUID, ...] = ()
 
 
 class AnswerEngine(Protocol):
@@ -47,7 +50,11 @@ def common_notices(result: RetrievalResult) -> list[Notice]:
     if result.draft_matches:
         names = ", ".join(sorted(d.title for d in result.draft_matches))
         notices.append(
-            Notice("draft_also", f"A draft also matched but isn't approved for use yet: {names}.")
+            Notice(
+                "draft_also",
+                f"A draft also matched but isn't approved for use yet: {names}.",
+                tuple(d.id for d in result.draft_matches),
+            )
         )
     if DocumentStatus.UNKNOWN.value in statuses:
         notices.append(
@@ -55,7 +62,13 @@ def common_notices(result: RetrievalResult) -> list[Notice]:
         )
     if result.outdated_matches:
         names = ", ".join(sorted(d.title for d in result.outdated_matches))
-        notices.append(Notice("outdated_excluded", f"Left out an outdated version: {names}."))
+        notices.append(
+            Notice(
+                "outdated_excluded",
+                f"Left out an outdated version: {names}.",
+                tuple(d.id for d in result.outdated_matches),
+            )
+        )
     return notices
 
 
@@ -73,11 +86,14 @@ class PreviewEngine:
 
     def compose(self, result: RetrievalResult) -> str:
         if not result.passages:
-            return (
-                "I couldn't find anything about that in the documents you can access. "
-                "If it should be documented, ask the owner of the related process, "
+            hint = result.owner_hint
+            who = (
+                f"For {hint['topic'].lower()}, the owner is {hint['owner']} (from {hint['title']})."
+                if hint
+                else "If it should be documented, ask the owner of the related process, "
                 "or try different words."
             )
+            return f"I couldn't find anything about that in the documents you can access. {who}"
         top, *rest = result.passages
         lines = [
             f"The most relevant document you can access is **{top.document.title}** "

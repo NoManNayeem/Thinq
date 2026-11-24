@@ -59,7 +59,7 @@ async def _seed(settings: Settings) -> None:
             log.info("seed skipped", reason=result.skipped_reason)
         # Documents are re-scanned on every start; unchanged files are left alone.
         async with create_sessionmaker(engine)() as db, db.begin():
-            report = await scan_documents(db, settings.seed_dir, actor=None)
+            report = await scan_documents(db, settings.seed_dir, actor=None, trigger="startup")
         if report.skipped_reason:
             log.info("document scan skipped", reason=report.skipped_reason)
     finally:

@@ -48,6 +48,9 @@ def settings() -> Settings:
         demo_mode=True,
         log_level="WARNING",
         login_max_failures=5,
+        # Rate limits are tested on their own app (tests/test_hardening.py).
+        api_requests_per_minute=0,
+        chat_questions_per_minute=0,
     )
 
 
@@ -169,12 +172,12 @@ async def org(make_group: MakeGroup, make_user: MakeUser) -> dict[str, Any]:
     """A small organization shaped like the sample data."""
     ops = await make_group("Ops")
     finance = await make_group("Finance")
-    nadia = await make_user("Nadia Rahman", groups=[ops], title="Operations Coordinator")
-    priya = await make_user("Priya Nair", groups=[finance], title="Finance Manager")
-    tariq = await make_user(
-        "Tariq Haddad", role=Role.ADMIN.value, groups=[ops, finance], title="Engineering Lead"
+    nora = await make_user("Nora Reyes", groups=[ops], title="Operations Coordinator")
+    paula = await make_user("Paula Novak", groups=[finance], title="Finance Manager")
+    theo = await make_user(
+        "Theo Hart", role=Role.ADMIN.value, groups=[ops, finance], title="Engineering Lead"
     )
-    return {"ops": ops, "finance": finance, "nadia": nadia, "priya": priya, "tariq": tariq}
+    return {"ops": ops, "finance": finance, "nora": nora, "paula": paula, "theo": theo}
 
 
 SAMPLE_SEED = Path(__file__).resolve().parents[2] / "seed" / "sample"

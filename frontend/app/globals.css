@@ -110,6 +110,7 @@
 
   /* 60 — neutral */
   --canvas: #f7f8fa;
+  --chart-bar: #4f46e5; /* validated: light surface */
   --background: #ffffff;
   --card: #ffffff;
   --card-foreground: #111827;
@@ -155,6 +156,7 @@
 .dark {
   /* 60 */
   --canvas: #0b0f17;
+  --chart-bar: #6366f1; /* validated: dark surface (#4f46e5 is under 3:1 there) */
   --background: #111827;
   --card: #111827;
   --card-foreground: #f3f4f6;

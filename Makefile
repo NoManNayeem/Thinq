@@ -78,5 +78,25 @@ test-frontend: ## Frontend unit tests
 test-e2e: up ## End-to-end tests in real browsers against the running stack
 	cd frontend && E2E_BASE_URL=http://localhost:$(THINQ_PORT) pnpm test:e2e
 
+.PHONY: screenshots
+screenshots: ## README screenshots into screenshots/ (stack must run with seed/sample; URL=... to override)
+	cd frontend && E2E_BASE_URL=$(or $(URL),http://localhost:$(THINQ_PORT)) pnpm exec playwright test --config playwright.screenshots.config.ts
+
+.PHONY: eval
+eval: ## Golden questions against the running stack (CASES=file to use another set)
+	cd backend && uv run python -m app.eval --cases $(or $(CASES),../seed/sample/eval.json) --base-url http://localhost:$(THINQ_PORT)
+
+# ---------------------------------------------------------------- operations
+
+.PHONY: backup
+backup: ## Dump the database to backups/thinq-<timestamp>.sql.gz
+	mkdir -p backups
+	$(COMPOSE) exec -T db sh -c 'pg_dump -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" --clean --if-exists' | gzip > backups/thinq-$(shell date +%Y%m%d-%H%M%S).sql.gz
+
+.PHONY: restore
+restore: ## Restore a dump, replacing current data: make restore FILE=backups/....sql.gz
+	test -n "$(FILE)"
+	gunzip -c "$(FILE)" | $(COMPOSE) exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
+
 .PHONY: check
 check: lint test test-e2e ## Everything CI runs

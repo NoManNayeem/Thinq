@@ -20,11 +20,11 @@ class LoginThrottle:
             attempts.popleft()
         return attempts
 
-    def retry_after(self, key: str) -> int:
+    def retry_after(self, key: str, *, limit: int | None = None) -> int:
         """Seconds until another attempt is allowed, or 0 if allowed now."""
         now = time.monotonic()
         attempts = self._prune(key, now)
-        if len(attempts) < self.max_failures:
+        if len(attempts) < (limit or self.max_failures):
             return 0
         return max(1, int(self.window_s - (now - attempts[0])) + 1)
 

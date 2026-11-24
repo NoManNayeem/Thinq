@@ -8,19 +8,24 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import DbDep, Principal, PrincipalDep
 from app.api.serializers import group_ref
+from app.core.config import get_settings
 from app.core.errors import NotFound
-from app.models import Document, DocumentFlag, DocumentVersion, Role, User
+from app.models import Document, DocumentFlag, DocumentVersion, Role, StatusProposal, User
 from app.models.group import EVERYONE_SLUG
 from app.schemas.common import error_responses
 from app.schemas.documents import (
     DocumentDetail,
     DocumentListOut,
+    DocumentRef,
     DocumentSummary,
+    FamilyMemberOut,
     FlagOut,
     OwnerOut,
+    ProposalOut,
     VersionDetail,
     VersionOut,
 )
+from app.services.documents import trust
 from app.services.documents.access import get_visible_document, visible_documents
 from app.services.users import member_count
 
@@ -109,14 +114,106 @@ async def detail(db: AsyncSession, principal: Principal, doc: Document) -> Docum
                 .order_by(DocumentFlag.resolved_at.is_not(None), DocumentFlag.created_at.desc())
             )
         ).all()
-        flags = [FlagOut.model_validate(f) for f in flag_rows]
+        mine = {
+            str(i)
+            for i in (
+                await db.scalars(visible_documents(principal).with_only_columns(Document.id))
+            ).all()
+        }
+        flags = [flag_out(f, mine) for f in flag_rows]
     open_count = sum(1 for f in flags or [] if f.resolved_at is None) if is_admin else None
+    period = get_settings().review_period_days
+    visible_ids = set(
+        (await db.scalars(visible_documents(principal).with_only_columns(Document.id))).all()
+    )
+    members = [m for m in await trust.family_members(db, doc) if m.id in visible_ids]
+    current = trust.current_of(members)
+    superseded = (
+        await db.get(Document, doc.superseded_by_id)
+        if doc.superseded_by_id and doc.superseded_by_id in visible_ids
+        else None
+    )
+    can_change = trust.can_change_status(principal, doc)
+    proposals = (
+        await proposals_for(db, principal, visible_ids, document_id=doc.id) if can_change else []
+    )
     return DocumentDetail(
         **summarize(doc, open_flags=open_count).model_dump(),
         content=doc.content,
         audience_count=await audience(db, doc),
         flags=flags,
+        source_kind=doc.source_kind,
+        family=[
+            FamilyMemberOut(
+                id=m.id,
+                title=m.title,
+                status=m.status,
+                last_modified=m.last_modified,
+                last_reviewed=m.last_reviewed,
+                is_current=current is not None and m.id == current.id,
+                is_self=m.id == doc.id,
+            )
+            for m in members
+        ]
+        if len(members) > 1
+        else [],
+        superseded_by=doc_ref(superseded) if superseded else None,
+        can_change_status=can_change and doc.is_registered,
+        review_due=trust.review_due(doc, period),
+        review_overdue=trust.is_review_overdue(doc, period),
+        proposals=proposals,
     )
+
+
+def flag_out(flag: DocumentFlag, visible: set[str]) -> FlagOut:
+    """A flag that names another document only names it to someone who can see it."""
+    out = FlagOut.model_validate(flag)
+    other = (flag.details or {}).get("of_document_id")
+    if other is not None and str(other) not in visible:
+        out.message = "This looks like a copy of a document you can't see."
+        out.details = {"similarity": (flag.details or {}).get("similarity")}
+    return out
+
+
+def doc_ref(doc: Document) -> DocumentRef:
+    return DocumentRef(id=doc.id, title=doc.title, status=doc.status)
+
+
+async def proposals_for(
+    db: AsyncSession,
+    principal: Principal,
+    visible_ids: set[uuid.UUID],
+    *,
+    document_id: uuid.UUID | None = None,
+) -> list[ProposalOut]:
+    """Open proposals this person may decide: they can see both documents and may change the
+    target's status."""
+    stmt = (
+        select(StatusProposal)
+        .where(StatusProposal.state == "open")
+        .options(selectinload(StatusProposal.document), selectinload(StatusProposal.evidence))
+        .order_by(StatusProposal.created_at)
+    )
+    if document_id is not None:
+        stmt = stmt.where(StatusProposal.document_id == document_id)
+    out = []
+    for p in (await db.scalars(stmt)).all():
+        if p.document_id not in visible_ids or p.evidence_document_id not in visible_ids:
+            continue
+        if not trust.can_change_status(principal, p.document):
+            continue
+        out.append(
+            ProposalOut(
+                id=p.id,
+                document=doc_ref(p.document),
+                proposed_status=p.proposed_status,
+                evidence=doc_ref(p.evidence),
+                evidence_text=p.evidence_text,
+                state=p.state,
+                created_at=p.created_at,
+            )
+        )
+    return out
 
 
 @router.get("", response_model=DocumentListOut, responses=error_responses(401))

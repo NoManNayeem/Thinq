@@ -1,3 +1,4 @@
+import ipaddress
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Annotated
@@ -65,4 +66,20 @@ AdminDep = Annotated[Principal, Depends(require_admin)]
 
 
 def client_ip(request: Request) -> str | None:
-    return request.client.host if request.client else None
+    """The browser's address. ``X-Forwarded-For`` is only believed when the request comes from a
+    private-network peer (the web container or a reverse proxy in front of it); its last entry is
+    the one that peer added."""
+    peer = request.client.host if request.client else None
+    forwarded = request.headers.get("x-forwarded-for")
+    if peer and forwarded and is_trusted_proxy(peer):
+        last = forwarded.split(",")[-1].strip()
+        return last or peer
+    return peer
+
+
+def is_trusted_proxy(address: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return address in {"testclient", "localhost"}
+    return ip.is_private or ip.is_loopback

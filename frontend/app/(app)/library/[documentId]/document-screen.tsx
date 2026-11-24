@@ -32,6 +32,13 @@ import {
 } from "@/components/documents/document-dialogs";
 import { DocumentMarkdown } from "@/components/documents/markdown";
 import { StatusBadge } from "@/components/documents/status-badge";
+import {
+  FamilyPanel,
+  HistoryPanel,
+  ReportButton,
+  StatusActions,
+  TrustCallouts,
+} from "@/components/documents/trust";
 import { useCurrentUser } from "@/components/shell/current-user";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -95,20 +102,25 @@ function DocumentView({ doc }: { doc: DocumentDetail }) {
           </>
         }
         actions={
-          isAdmin &&
-          (doc.is_registered ? (
-            <Button variant="outline" onClick={() => setDialog("edit")}>
-              <PencilIcon />
-              Edit details
-            </Button>
-          ) : (
-            <Button onClick={() => setDialog("register")}>
-              <StampIcon />
-              Register document
-            </Button>
-          ))
+          <>
+            {isAdmin &&
+              (doc.is_registered ? (
+                <Button variant="outline" onClick={() => setDialog("edit")}>
+                  <PencilIcon />
+                  Edit details
+                </Button>
+              ) : (
+                <Button onClick={() => setDialog("register")}>
+                  <StampIcon />
+                  Register document
+                </Button>
+              ))}
+            <StatusActions doc={doc} />
+            {doc.is_registered && <ReportButton doc={doc} />}
+          </>
         }
       />
+      <TrustCallouts doc={doc} />
 
       {status.caution && (
         <Callout icon={status.icon} tone={doc.status === "outdated" ? "neutral" : "warning"}>
@@ -162,6 +174,19 @@ function DocumentView({ doc }: { doc: DocumentDetail }) {
                   ),
                 },
                 { label: "Last reviewed", icon: CalendarCheckIcon, value: day(doc.last_reviewed) },
+                ...(doc.review_due
+                  ? [
+                      {
+                        label: "Next review",
+                        icon: CalendarIcon,
+                        value: doc.review_overdue ? (
+                          <Badge variant="warning">Overdue · {day(doc.review_due)}</Badge>
+                        ) : (
+                          day(doc.review_due)
+                        ),
+                      },
+                    ]
+                  : []),
                 { label: "Last changed", icon: CalendarIcon, value: day(doc.last_modified) },
               ]}
             />
@@ -199,7 +224,9 @@ function DocumentView({ doc }: { doc: DocumentDetail }) {
               ]}
             />
           </Panel>
+          <FamilyPanel doc={doc} />
           <VersionsPanel doc={doc} onView={setViewing} />
+          {doc.is_registered && <HistoryPanel docId={doc.id} />}
         </div>
       </div>
 

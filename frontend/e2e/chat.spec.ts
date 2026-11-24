@@ -39,6 +39,8 @@ test("an answer streams in with its sources, status and owner", async ({ page })
   // Sources stay folded until asked for; the toggle still shows how many there are.
   const toggle = answer.getByTestId("sources-toggle");
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  // Folded, it still names the top source and its status.
+  await expect(toggle.getByTestId("top-source")).toContainText(DOCS.tableTitle);
   await expect(answer.getByTestId("answer-sources")).toHaveCount(0);
   await toggle.click();
   const panel = answer.getByTestId("answer-sources");

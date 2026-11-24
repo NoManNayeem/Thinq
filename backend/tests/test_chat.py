@@ -205,13 +205,24 @@ async def test_feedback_is_private_and_editable(
     response = await dana.put(
         url, json={"rating": "down", "reason": "outdated", "comment": "Portal moved"}
     )
-    assert response.json() == {"rating": "down", "reason": "outdated", "comment": "Portal moved"}
+    body = response.json()
+    assert {k: body[k] for k in ("rating", "reason", "comment")} == {
+        "rating": "down",
+        "reason": "outdated",
+        "comment": "Portal moved",
+    }
+    assert body["report"]["state"] == "open"  # it reached someone's inbox
     message = (await dana.get(f"/api/chat/conversations/{chat}")).json()["messages"][1]
     assert message["feedback"]["reason"] == "outdated"
 
     await dana.put(url, json={"rating": "up", "reason": "wrong"})
     message = (await dana.get(f"/api/chat/conversations/{chat}")).json()["messages"][1]
-    assert message["feedback"] == {"rating": "up", "reason": None, "comment": None}
+    assert message["feedback"] == {
+        "rating": "up",
+        "reason": None,
+        "comment": None,
+        "report": None,  # changing to helpful withdraws the report
+    }
     assert (await dana.delete(url)).status_code == 204
     message = (await dana.get(f"/api/chat/conversations/{chat}")).json()["messages"][1]
     assert message["feedback"] is None

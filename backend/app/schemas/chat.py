@@ -5,6 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.documents import DocumentStatusName
+from app.schemas.feedback import ReportOutcome
 
 MAX_QUESTION_CHARS = 4000
 
@@ -31,6 +32,7 @@ class FeedbackOut(BaseModel):
     rating: Literal["up", "down"]
     reason: str | None
     comment: str | None
+    report: ReportOutcome | None = None
 
 
 class ChatMessageOut(BaseModel):

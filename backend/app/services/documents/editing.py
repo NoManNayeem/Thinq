@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -152,3 +153,90 @@ async def dismiss_flag(
     )
     await db.flush()
     return flag
+
+
+async def _visible_to(db: AsyncSession, user: User, doc: Document) -> bool:
+    from app.services.access import effective_groups
+
+    if doc.access_group_id is None:
+        return user.is_admin
+    return doc.access_group_id in {g.id for g in await effective_groups(db, user)}
+
+
+async def upload_document(
+    db: AsyncSession,
+    *,
+    actor: User,
+    filename: str,
+    content: str,
+    title: str | None,
+    access_group_id: uuid.UUID,
+    owner_name: str | None,
+    owner_user_id: uuid.UUID | None,
+    status: str,
+    ip_address: str | None,
+) -> Document:
+    """Add a document directly in Thinq. Uploading the same file name again adds a version."""
+    from app.models import DocumentVersion
+    from app.services.documents.importer import _hash, _title_from
+    from app.services.documents.trust import ensure_families, refresh_proposals
+
+    source_path = f"uploads/{filename}"
+    digest = _hash(content)
+    group = await _group(db, access_group_id)
+    name, user_id = await _resolve_owner(db, owner_name, owner_user_id)
+    doc = await db.scalar(select(Document).where(Document.source_path == source_path))
+    if doc is not None and not await _visible_to(db, actor, doc):
+        # Never touch, or confirm the existence of, a document this Admin can't see.
+        raise Conflict(
+            "That file name is taken. Rename the file and upload it again.", code="name_taken"
+        )
+    if doc is None:
+        doc = Document(
+            source_path=source_path,
+            source_kind="upload",
+            title=(title or "").strip() or _title_from(content, Path(filename)),
+            content=content,
+            content_hash=digest,
+            current_version=1,
+            last_modified=datetime.now(UTC).date(),
+            status=status,
+            is_registered=True,
+            source_present=True,
+            access_group_id=group.id,
+            owner_name=name,
+            owner_user_id=user_id,
+            manifest={},
+        )
+        db.add(doc)
+        await db.flush()
+        db.add(DocumentVersion(document_id=doc.id, version=1, content=content, content_hash=digest))
+        action = "document.uploaded"
+    else:
+        if digest == doc.content_hash:
+            raise Conflict("That file is identical to the current version.", code="unchanged")
+        doc.current_version += 1
+        doc.content, doc.content_hash = content, digest
+        doc.last_modified = datetime.now(UTC).date()
+        db.add(
+            DocumentVersion(
+                document_id=doc.id,
+                version=doc.current_version,
+                content=content,
+                content_hash=digest,
+            )
+        )
+        action = "document.new_version"
+    await audit.record(
+        db,
+        actor=actor,
+        action=action,
+        target=doc,
+        details={"file": filename, "version": doc.current_version, "access_group": group.name},
+        ip_address=ip_address,
+    )
+    await db.flush()
+    await ensure_families(db)
+    await reconcile_flags(db)
+    await refresh_proposals(db)
+    return doc

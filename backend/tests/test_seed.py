@@ -10,9 +10,9 @@ from app.services.access import effective_groups
 from app.services.seed import seed_from_dir
 
 CSV = """user_id,name,email,title,role,access_groups
-U1,Nadia Rahman,Nadia@Example.com,Operations Coordinator,Member,Everyone;Ops
-U2,Priya Nair,priya@example.com,Finance Manager,Member,Everyone;Finance
-U3,Tariq Haddad,tariq@example.com,Engineering Lead,Admin,Everyone;Ops;Finance
+U1,Nora Reyes,Nora@Example.com,Operations Coordinator,Member,Everyone;Ops
+U2,Paula Novak,paula@example.com,Finance Manager,Member,Everyone;Finance
+U3,Theo Hart,theo@example.com,Engineering Lead,Admin,Everyone;Ops;Finance
 """
 
 
@@ -24,12 +24,12 @@ async def test_seeds_users_and_groups(tmp_path: Path, db: AsyncSession) -> None:
 
     groups = {g.slug: g for g in (await db.scalars(select(Group))).all()}
     assert set(groups) == {"everyone", "ops", "finance"}
-    tariq = await db.scalar(select(User).where(User.email == "tariq@example.com"))
-    assert tariq is not None and tariq.is_admin
-    assert [g.name for g in await effective_groups(db, tariq)] == ["Everyone", "Finance", "Ops"]
-    nadia = await db.scalar(select(User).where(User.email == "nadia@example.com"))
-    assert nadia is not None and not nadia.is_admin
-    assert verify_password("seed-password-1", nadia.password_hash)[0]
+    theo = await db.scalar(select(User).where(User.email == "theo@example.com"))
+    assert theo is not None and theo.is_admin
+    assert [g.name for g in await effective_groups(db, theo)] == ["Everyone", "Finance", "Ops"]
+    nora = await db.scalar(select(User).where(User.email == "nora@example.com"))
+    assert nora is not None and not nora.is_admin
+    assert verify_password("seed-password-1", nora.password_hash)[0]
 
 
 async def test_never_reseeds_existing_data(

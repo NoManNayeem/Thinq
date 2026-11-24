@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { isToday, isYesterday, parseISO, subDays } from "date-fns";
+import { isSameDay, parseISO, subDays } from "date-fns";
 import type { ChatFeedback, ChatNotice, ChatSource, Conversation, StoredChatMessage } from "@/lib/api/client";
 
 export type Retrieval = {
@@ -26,7 +26,7 @@ export function retrievalSummary(r: Retrieval): string {
   const how =
     r.engine === "preview"
       ? "preview mode"
-      : r.engine === "ai"
+      : r.engine === "ai" && (r.used ?? 1) > 0
         ? "written by AI from these sources only. Check the sources before relying on it"
         : null;
   return how ? `${parts.join(" ")} · ${how}` : parts.join(" ");
@@ -111,9 +111,9 @@ export function groupConversations(items: Conversation[], now = new Date()): Con
     const d = parseISO(c.updated_at);
     const group = c.pinned
       ? groups[0]
-      : isToday(d)
+      : isSameDay(d, now)
         ? groups[1]
-        : isYesterday(d)
+        : isSameDay(d, subDays(now, 1))
           ? groups[2]
           : d > weekAgo
             ? groups[3]

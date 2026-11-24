@@ -5,9 +5,12 @@ from app.models.document import (
     DocumentFlag,
     DocumentScan,
     DocumentStatus,
+    DocumentStatusChange,
     DocumentVersion,
     FlagSeverity,
+    StatusProposal,
 )
+from app.models.feedback import FeedbackItem
 from app.models.group import Group, Membership
 from app.models.knowledge import KnowledgeDataset, KnowledgeItem
 from app.models.session import UserSession
@@ -21,7 +24,9 @@ __all__ = [
     "DocumentFlag",
     "DocumentScan",
     "DocumentStatus",
+    "DocumentStatusChange",
     "DocumentVersion",
+    "FeedbackItem",
     "FlagSeverity",
     "Group",
     "KnowledgeDataset",
@@ -30,6 +35,7 @@ __all__ = [
     "MessageFeedback",
     "MessageSource",
     "Role",
+    "StatusProposal",
     "User",
     "UserSession",
 ]

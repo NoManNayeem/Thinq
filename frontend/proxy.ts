@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 const SESSION_COOKIE = "thinq_session";
-const PUBLIC_PATHS = ["/sign-in", "/status", "/welcome"];
+const PUBLIC_PATHS = ["/sign-in", "/setup", "/status", "/welcome"];
 
 /**
  * Fast redirect for visitors with no session cookie. This is a convenience only:

@@ -125,7 +125,7 @@ class KnowledgeService:
     def indexable_text(doc: Document) -> str:
         """Document text as indexed: lines aimed at an AI assistant are left out entirely."""
         injected = set(ai_instruction_lines(doc.content))
-        lines = [line for line in doc.content.splitlines() if line not in injected]
+        lines = [line for line in doc.content.splitlines() if line.strip()[:240] not in injected]
         body = "\n".join(lines).strip()
         return body if body.startswith("# ") else f"# {doc.title}\n\n{body}"
 
@@ -165,6 +165,7 @@ class KnowledgeService:
                 await db.scalars(
                     select(Document).where(
                         Document.is_registered.is_(True),
+                        Document.source_present.is_(True),
                         Document.status != DocumentStatus.OUTDATED.value,
                     )
                 )

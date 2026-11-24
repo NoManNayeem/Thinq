@@ -70,6 +70,9 @@ class ChatMessage(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="complete")
     engine: Mapped[str | None] = mapped_column(String(32))
     model: Mapped[str | None] = mapped_column(String(120))
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    cost_usd: Mapped[float | None] = mapped_column(Float)
     # Notices and retrieval details shown with the answer.
     notices: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")

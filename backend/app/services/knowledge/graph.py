@@ -28,11 +28,9 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import Principal
 from app.models import Document
 from app.services.documents.access import visible_documents
+from app.services.documents.trust import family_key
 
 MAX_ENTITIES = 160
-VERSION_WORDS = re.compile(
-    r"\b(v\d+|final|draft|copy|\d{4}(-\d{2}(-\d{2})?)?|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*|\d{1,2})\b"
-)
 
 
 @dataclass
@@ -61,9 +59,8 @@ class Graph:
         return {"nodes": nodes, "edges": list(self.edges.values())}
 
 
-def family_key(title: str) -> str:
-    words = VERSION_WORDS.sub(" ", title.lower().replace(":", " "))
-    return " ".join(re.findall(r"[a-z]+", words))
+def _family(doc: Document) -> str:
+    return doc.family or family_key(doc.title)
 
 
 def _names(doc: Document) -> list[str]:
@@ -81,7 +78,7 @@ async def visible_graph_documents(db: AsyncSession, principal: Principal) -> lis
         (
             await db.scalars(
                 visible_documents(principal)
-                .where(Document.is_registered.is_(True))
+                .where(Document.is_registered.is_(True), Document.source_present.is_(True))
                 .options(selectinload(Document.access_group))
                 .order_by(Document.title)
             )
@@ -123,7 +120,7 @@ def document_graph(docs: list[Document], principal: Principal) -> Graph:
 
     families: dict[str, list[Document]] = defaultdict(list)
     for doc in docs:
-        key = family_key(doc.title)
+        key = _family(doc)
         if key:
             families[key].append(doc)
     for members in families.values():
@@ -136,7 +133,7 @@ def document_graph(docs: list[Document], principal: Principal) -> Graph:
         for other in docs:
             if (
                 other.id != doc.id
-                and family_key(other.title) != family_key(doc.title)
+                and _family(other) != _family(doc)
                 and any(name in text for name in _names(other))
             ):
                 graph.edge(f"doc:{doc.id}", f"doc:{other.id}", "references", "refers to")

@@ -19,8 +19,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import Document, KnowledgeItem, Membership
+from app.services.documents.trust import family_key
 from app.services.knowledge.cognee_client import CogneeClient, parse_chunk_hits
-from app.services.knowledge.graph import family_key
 from app.services.knowledge.service import KnowledgeService
 from tests.conftest import MakeClient
 from tests.test_chat import ask, new_chat

@@ -82,6 +82,29 @@ const ACTIONS: Record<string, { label: string; describe?: Describe }> = {
       return `${docs} source${docs === 1 ? "" : "s"}${e.details.regenerated ? " · regenerated" : ""}`;
     },
   },
+  "document.status_changed": {
+    label: "Document status changed",
+    describe: (e) =>
+      `${str(e.details.from)} → ${str(e.details.to)}${e.details.note ? ` · ${str(e.details.note)}` : ""}`,
+  },
+  "document.uploaded": {
+    label: "Document uploaded",
+    describe: (e) => `${str(e.details.file)} · shared with ${str(e.details.access_group)}`,
+  },
+  "document.new_version": {
+    label: "New version uploaded",
+    describe: (e) => `${str(e.details.file)} · version ${str(e.details.version)}`,
+  },
+  "documents.scan_failed": { label: "Sync failed", describe: (e) => str(e.details.error) },
+  "feedback.resolved": {
+    label: "Report resolved",
+    describe: (e) => str(e.details.resolution).replace("_", " "),
+  },
+  "retrieval.inspected": {
+    label: "Retrieval inspected",
+    describe: () => "As another person, nothing answered",
+  },
+  "auth.first_admin_created": { label: "First Admin created", describe: () => "First-run setup" },
   "system.seeded": {
     label: "Initial data loaded",
     describe: (e) => `${str(e.details.users)} users from ${str(e.details.source)}`,

@@ -23,6 +23,9 @@ class SessionInfo(Schema):
 class MeOut(BaseModel):
     user: UserOut
     session: SessionInfo
+    owns_documents: bool = Field(
+        default=False, description="Owner of at least one document, so they may approve it"
+    )
 
 
 class AuthConfigOut(BaseModel):

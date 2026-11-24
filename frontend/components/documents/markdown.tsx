@@ -11,7 +11,8 @@ const components: Components = {
   h2: ({ children }) => <h3 className="mt-8 mb-4 font-semibold text-lg">{children}</h3>,
   h3: ({ children }) => <h4 className="mt-6 mb-2 font-semibold text-base">{children}</h4>,
   h4: ({ children }) => <h5 className="mt-6 mb-2 font-semibold text-sm">{children}</h5>,
-  p: ({ children }) => <p className="mb-4 text-base">{children}</p>,
+  // Keep single line breaks: document headers are often "Owner: …" / "Status: …" lines.
+  p: ({ children }) => <p className="mb-4 whitespace-pre-line text-base">{children}</p>,
   ul: ({ children }) => <ul className="mb-4 flex list-disc flex-col gap-2 pl-6 text-base">{children}</ul>,
   ol: ({ children }) => <ol className="mb-4 flex list-decimal flex-col gap-2 pl-6 text-base">{children}</ol>,
   li: ({ children }) => <li className="pl-1">{children}</li>,

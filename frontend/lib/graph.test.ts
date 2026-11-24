@@ -50,6 +50,12 @@ describe("graph helpers", () => {
     expect(relationLabel(connectionsOf("p1", nodes, edges)[0])).toBe("Owns");
   });
 
+  it("lists each connected thing once, by its most meaningful link", () => {
+    const extra: GraphEdge[] = [...edges, { source: "p1", target: "d1", kind: "relation", label: "owns" }];
+    const c = connectionsOf("d1", nodes, extra);
+    expect(c.filter((x) => x.node.id === "p1").map((x) => x.edge.kind)).toEqual(["owned_by"]);
+  });
+
   it("computes a neighbourhood", () => {
     expect(neighbourhood(null, edges)).toBeNull();
     expect([...(neighbourhood("d1", edges) ?? [])].sort()).toEqual(["d1", "d2", "p1"]);

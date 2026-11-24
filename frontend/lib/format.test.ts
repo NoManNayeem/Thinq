@@ -3,7 +3,7 @@ import { greeting, initials, plural, relativeTime } from "./format";
 
 describe("format helpers", () => {
   it("builds initials", () => {
-    expect(initials("Nadia Rahman")).toBe("NR");
+    expect(initials("Nora Reyes")).toBe("NR");
     expect(initials("Ravi")).toBe("R");
     expect(initials("  Mary Ann  Smith ")).toBe("MS");
     expect(initials("")).toBe("?");
@@ -33,6 +33,6 @@ describe("initials for mixed scripts", () => {
     expect(initials("নাদিয়া রহমান")).toBe("নার");
     // Never end on a dangling virama (্), which would render as a broken glyph.
     expect(initials("প্রিয়া")).not.toMatch(/\u09CD$/);
-    expect(initials("Nadia রহমান")).toBe("Nর");
+    expect(initials("Nora রহমান")).toBe("Nর");
   });
 });

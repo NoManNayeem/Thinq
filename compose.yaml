@@ -30,6 +30,8 @@ services:
       THINQ_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-thinq}:${POSTGRES_PASSWORD:-thinq}@db:5432/${POSTGRES_DB:-thinq}
       THINQ_COOKIE_SECURE: ${THINQ_COOKIE_SECURE:-false}
       THINQ_DEMO_MODE: ${THINQ_DEMO_MODE:-false}
+      THINQ_API_DOCS: ${THINQ_API_DOCS:-false}
+      THINQ_METRICS_TOKEN: ${THINQ_METRICS_TOKEN:-}
       THINQ_SEED_DIR: /seed
       THINQ_SEED_PASSWORD: ${THINQ_SEED_PASSWORD:-}
       # Answers: any Pydantic AI "provider:model" (empty = preview mode, no AI model).
@@ -66,6 +68,8 @@ services:
       target: runtime
     environment:
       THINQ_BACKEND_URL: http://backend:8000
+      # Reverse proxies in front of the web app that append to X-Forwarded-For (0 = none).
+      THINQ_TRUSTED_PROXY_HOPS: ${THINQ_TRUSTED_PROXY_HOPS:-0}
     ports:
       - "${THINQ_PORT:-3000}:3000"
     healthcheck:

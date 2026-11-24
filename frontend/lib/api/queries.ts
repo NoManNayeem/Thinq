@@ -30,6 +30,14 @@ export const keys = {
   latestScan: ["admin", "scan"] as const,
   chatConfig: ["chat", "config"] as const,
   knowledgeGraph: ["knowledge", "graph"] as const,
+  approvals: ["approvals"] as const,
+  history: (id: string) => ["document", id, "history"] as const,
+  inbox: (state: string) => ["feedback", "inbox", state] as const,
+  inboxAll: ["feedback", "inbox"] as const,
+  myReports: ["feedback", "mine"] as const,
+  scans: ["admin", "scans"] as const,
+  quality: (days: number) => ["admin", "quality", days] as const,
+  configWarnings: ["admin", "config-warnings"] as const,
   knowledgeStatus: ["admin", "knowledge"] as const,
   conversations: ["chat", "conversations"] as const,
   conversation: (id: string) => ["chat", "conversation", id] as const,
@@ -543,5 +551,159 @@ export function useMessageFeedback() {
         ? unwrap(api.PUT("/api/chat/messages/{message_id}/feedback", { ...opts, body }))
         : unwrap(api.DELETE("/api/chat/messages/{message_id}/feedback", opts));
     },
+  });
+}
+
+// ---------------------------------------------------------------- trust and approval
+
+function invalidateTrust(qc: QueryClient, id?: string) {
+  invalidateDocuments(qc, id);
+  qc.invalidateQueries({ queryKey: keys.approvals });
+  if (id) qc.invalidateQueries({ queryKey: keys.history(id) });
+  qc.invalidateQueries({ queryKey: keys.knowledgeGraph });
+}
+
+export function useApprovals(enabled = true) {
+  return useQuery({
+    queryKey: keys.approvals,
+    queryFn: () => unwrap(api.GET("/api/approvals")),
+    enabled,
+  });
+}
+
+export function useDocumentHistory(id: string) {
+  return useQuery({
+    queryKey: keys.history(id),
+    queryFn: () =>
+      unwrap(api.GET("/api/documents/{document_id}/history", { params: { path: { document_id: id } } })),
+  });
+}
+
+export function useChangeStatus(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Schemas["StatusActionIn"]) =>
+      unwrap(
+        api.POST("/api/documents/{document_id}/status", { params: { path: { document_id: id } }, body }),
+      ),
+    onSuccess: (doc) => {
+      qc.setQueryData(keys.document(id), doc);
+      invalidateTrust(qc, id);
+    },
+  });
+}
+
+export function useDecideProposal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; accept: boolean; note?: string | null }) =>
+      unwrap(
+        api.POST("/api/approvals/proposals/{proposal_id}", { params: { path: { proposal_id: id } }, body }),
+      ),
+    onSuccess: (data) => {
+      qc.setQueryData(keys.approvals, data);
+      invalidateTrust(qc);
+      qc.invalidateQueries({ queryKey: ["document"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------- feedback inbox
+
+export function useInbox(state: "open" | "resolved" | "all" = "open", enabled = true) {
+  return useQuery({
+    queryKey: keys.inbox(state),
+    queryFn: () => unwrap(api.GET("/api/feedback/inbox", { params: { query: { state } } })),
+    enabled,
+  });
+}
+
+export function useMyReports() {
+  return useQuery({ queryKey: keys.myReports, queryFn: () => unwrap(api.GET("/api/feedback/mine")) });
+}
+
+export function useResolveItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & Schemas["ResolveIn"]) =>
+      unwrap(api.POST("/api/feedback/items/{item_id}/resolve", { params: { path: { item_id: id } }, body })),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.inboxAll });
+      qc.invalidateQueries({ queryKey: keys.myReports });
+      invalidateTrust(qc);
+    },
+  });
+}
+
+export function useReportDocument(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Schemas["ReportDocumentIn"]) =>
+      unwrap(
+        api.POST("/api/documents/{document_id}/report", { params: { path: { document_id: id } }, body }),
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.myReports });
+      qc.invalidateQueries({ queryKey: keys.inboxAll });
+    },
+  });
+}
+
+// ---------------------------------------------------------------- sources, quality, setup
+
+export function useScans() {
+  return useQuery({ queryKey: keys.scans, queryFn: () => unwrap(api.GET("/api/admin/documents/scans")) });
+}
+
+export function useSyncDocuments() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(api.POST("/api/admin/documents/scan")),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: keys.scans });
+      qc.invalidateQueries({ queryKey: keys.latestScan });
+      invalidateTrust(qc);
+    },
+  });
+}
+
+export function useUploadDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Schemas["UploadIn"]) => unwrap(api.POST("/api/admin/documents/upload", { body })),
+    onSuccess: () => invalidateTrust(qc),
+  });
+}
+
+export function useQuality(days: number) {
+  return useQuery({
+    queryKey: keys.quality(days),
+    queryFn: () => unwrap(api.GET("/api/admin/quality", { params: { query: { days } } })),
+  });
+}
+
+export function useInspect() {
+  return useMutation({
+    mutationFn: (body: Schemas["InspectIn"]) => unwrap(api.POST("/api/admin/retrieval/inspect", { body })),
+  });
+}
+
+export function useConfigWarnings(enabled: boolean) {
+  return useQuery({
+    queryKey: keys.configWarnings,
+    queryFn: () => unwrap(api.GET("/api/admin/config-warnings")),
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useSetupStatus() {
+  return useQuery({ queryKey: ["auth", "setup"], queryFn: () => unwrap(api.GET("/api/auth/setup")) });
+}
+
+export function useDocumentSource() {
+  return useQuery({
+    queryKey: ["admin", "source"],
+    queryFn: () => unwrap(api.GET("/api/admin/documents/source")),
   });
 }

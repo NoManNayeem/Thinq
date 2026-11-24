@@ -8,14 +8,14 @@ const everyone = { id: "g0", slug: "everyone", name: "Everyone", is_system: true
 const users: DemoUser[] = [
   {
     id: "u1",
-    name: "Nadia Rahman",
+    name: "Nora Reyes",
     title: "Operations Coordinator",
     role: "member",
     groups: [everyone, { id: "g1", slug: "ops", name: "Ops", is_system: false }],
   },
   {
     id: "u3",
-    name: "Tariq Haddad",
+    name: "Theo Hart",
     title: "Engineering Lead",
     role: "admin",
     groups: [everyone],
@@ -25,17 +25,17 @@ const users: DemoUser[] = [
 describe("DemoUserList", () => {
   it("shows each user's role and groups, hiding the implicit Everyone group", () => {
     render(<DemoUserList users={users} loading={false} pendingId={null} onSelect={vi.fn()} />);
-    const nadia = screen.getByRole("button", { name: /Nadia Rahman/ });
-    expect(nadia).toHaveTextContent("Member");
-    expect(nadia).toHaveTextContent("Ops");
-    expect(nadia).not.toHaveTextContent("Everyone");
-    expect(screen.getByRole("button", { name: /Tariq Haddad/ })).toHaveTextContent("Admin");
+    const nora = screen.getByRole("button", { name: /Nora Reyes/ });
+    expect(nora).toHaveTextContent("Member");
+    expect(nora).toHaveTextContent("Ops");
+    expect(nora).not.toHaveTextContent("Everyone");
+    expect(screen.getByRole("button", { name: /Theo Hart/ })).toHaveTextContent("Admin");
   });
 
   it("signs in as the chosen user", async () => {
     const onSelect = vi.fn();
     render(<DemoUserList users={users} loading={false} pendingId={null} onSelect={onSelect} />);
-    await userEvent.click(screen.getByRole("button", { name: /Tariq Haddad/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Theo Hart/ }));
     expect(onSelect).toHaveBeenCalledWith(users[1]);
   });
 

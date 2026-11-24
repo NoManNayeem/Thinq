@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import { GroupChip } from "@/components/common/badges";
 import { StatusBadge } from "@/components/documents/status-badge";
 import type { ChatSource } from "@/lib/api/client";
+import { STATUS } from "@/lib/documents";
 import { dateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -46,8 +47,8 @@ const excerpt: Components = {
 };
 
 /**
- * The collapsed form: "3 sources" with one status dot per source, so status is visible
- * at a glance without opening anything.
+ * The collapsed form names the top source and its status, so every answer shows its source and
+ * status without opening anything; one dot per source shows the rest at a glance.
  */
 export function SourcesToggle({
   sources,
@@ -69,7 +70,7 @@ export function SourcesToggle({
       aria-controls={controls}
       data-testid="sources-toggle"
       className={cn(
-        "inline-flex h-12 items-center gap-2 rounded-full border px-4 font-medium text-sm outline-none transition-colors md:h-8 md:px-3 md:pointer-coarse:h-12",
+        "inline-flex h-12 min-w-0 max-w-full items-center gap-2 rounded-full border px-4 font-medium text-sm outline-none transition-colors md:h-8 md:px-3 md:pointer-coarse:h-12",
         "hover:bg-secondary focus-visible:ring-3 focus-visible:ring-ring/40",
         open ? "bg-secondary text-foreground" : "bg-card text-muted-foreground",
       )}
@@ -79,7 +80,11 @@ export function SourcesToggle({
           <span key={s.n} className={cn("size-2 rounded-full", STATUS_DOT[s.status] ?? STATUS_DOT.unknown)} />
         ))}
       </span>
-      {sources.length} source{sources.length === 1 ? "" : "s"}
+      <span className="min-w-0 truncate" data-testid="top-source">
+        <span className="text-foreground">{sources[0].title}</span> ·{" "}
+        {STATUS[sources[0].status]?.label ?? sources[0].status}
+      </span>
+      {sources.length > 1 && <span className="shrink-0">+{sources.length - 1} more</span>}
       <ChevronDownIcon className={cn("size-4 transition-transform", open && "rotate-180")} aria-hidden />
     </button>
   );

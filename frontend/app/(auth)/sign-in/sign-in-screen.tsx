@@ -14,7 +14,14 @@ import { MotionProvider } from "@/components/marketing/reveal";
 import { TrustScene } from "@/components/marketing/trust-scene";
 import { ButtonLink } from "@/components/ui/button-link";
 import { errorMessage } from "@/lib/api/client";
-import { useAuthConfig, useDemoLogin, useDemoUsers, useLogin, useMe } from "@/lib/api/queries";
+import {
+  useAuthConfig,
+  useDemoLogin,
+  useDemoUsers,
+  useLogin,
+  useMe,
+  useSetupStatus,
+} from "@/lib/api/queries";
 import { safeNext } from "@/lib/navigation";
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -37,6 +44,12 @@ export function SignInScreen() {
   useEffect(() => {
     if (me.isSuccess) window.location.replace(next);
   }, [me.isSuccess, next]);
+
+  // A brand-new installation has nobody to sign in as: create the first Admin instead.
+  const setup = useSetupStatus();
+  useEffect(() => {
+    if (setup.data?.needed) window.location.replace("/setup");
+  }, [setup.data?.needed]);
 
   const submit = (values: SignInValues) => login.mutate(values, { onSuccess: enter });
 

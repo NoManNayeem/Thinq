@@ -259,6 +259,8 @@ export function GraphCanvas({
     if (svg && zoomRef.current) zoomRef.current.scaleBy(select(svg), factor);
   };
   const showEntityLabels = transform.k > 1.3;
+  // Relation captions only while pointing at a topic: shown for a whole neighbourhood they pile up.
+  const hoveredTopic = hoverId !== null && simNodes.current.get(hoverId)?.kind === "entity";
   const positioned = [...simNodes.current.values()];
   const byId = simNodes.current;
 
@@ -343,17 +345,19 @@ export function GraphCanvas({
                           : "url(#graph-arrow)"
                     }
                   />
-                  {active && edge.kind === "relation" && (
-                    <text
-                      x={(x1 + x2) / 2}
-                      y={(y1 + y2) / 2 - 4}
-                      textAnchor="middle"
-                      className="fill-muted-foreground text-xs"
-                      style={{ paintOrder: "stroke", stroke: "var(--card)", strokeWidth: 4 }}
-                    >
-                      {edge.label}
-                    </text>
-                  )}
+                  {edge.kind === "relation" &&
+                    hoveredTopic &&
+                    (hoverId === edge.source || hoverId === edge.target) && (
+                      <text
+                        x={(x1 + x2) / 2}
+                        y={(y1 + y2) / 2 - 4}
+                        textAnchor="middle"
+                        className="fill-muted-foreground text-xs"
+                        style={{ paintOrder: "stroke", stroke: "var(--card)", strokeWidth: 4 }}
+                      >
+                        {edge.label}
+                      </text>
+                    )}
                 </g>
               );
             })}
@@ -366,7 +370,7 @@ export function GraphCanvas({
               const faded = dimmed(n.id);
               const emphasised = highlighted?.has(n.id);
               const showLabel =
-                n.kind !== "entity" || showEntityLabels || selected || focusSet?.has(n.id) || emphasised;
+                n.kind !== "entity" || showEntityLabels || selected || hoverId === n.id || emphasised;
               const outdated = n.kind === "document" && n.status === "outdated";
               const focusable = n.kind !== "entity";
               return (

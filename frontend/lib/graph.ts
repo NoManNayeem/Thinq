@@ -57,8 +57,16 @@ export function connectionsOf(nodeId: string, nodes: GraphNode[], edges: GraphEd
       if (node) out.push({ node, edge, direction: "in" });
     }
   }
+  // One row per connected thing: when it's linked several ways (an owner who is also a topic
+  // that "owns" the document), keep the most meaningful link.
+  const priority: EdgeKind[] = ["version", "references", "owned_by", "shared_with", "mentions", "relation"];
+  const best = new Map<string, Connection>();
+  for (const c of out) {
+    const seen = best.get(c.node.id);
+    if (!seen || priority.indexOf(c.edge.kind) < priority.indexOf(seen.edge.kind)) best.set(c.node.id, c);
+  }
   const rank = (c: Connection) => KIND_ORDER.indexOf(c.node.kind);
-  return out.sort((a, b) => rank(a) - rank(b) || a.node.label.localeCompare(b.node.label));
+  return [...best.values()].sort((a, b) => rank(a) - rank(b) || a.node.label.localeCompare(b.node.label));
 }
 
 /** How a connection reads from the selected node's side. */

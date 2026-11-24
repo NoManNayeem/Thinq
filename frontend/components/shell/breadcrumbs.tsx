@@ -15,6 +15,8 @@ export function crumbsFor(pathname: string): Crumb[] {
   if (parts[0] === "profile") return [{ label: "Your profile" }];
   if (parts[0] === "chat") return [{ label: "Ask Thinq" }];
   if (parts[0] === "knowledge") return [{ label: "Knowledge graph" }];
+  if (parts[0] === "approvals") return [{ label: "Approvals" }];
+  if (parts[0] === "feedback") return [{ label: "Feedback" }];
   if (parts[0] === "library") {
     return parts[1]
       ? [{ label: "Library", href: "/library" }, { label: "Document" }]
@@ -27,6 +29,8 @@ export function crumbsFor(pathname: string): Crumb[] {
       groups: "Groups",
       audit: "Audit log",
       attention: "Needs attention",
+      sources: "Sources and sync",
+      quality: "Answer quality",
     };
     const detail: Record<string, string> = { users: "User details", groups: "Group details" };
     const crumbs: Crumb[] = [{ label: "Administration" }];

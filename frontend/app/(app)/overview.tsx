@@ -7,6 +7,7 @@ import {
   KeyRoundIcon,
   LibraryIcon,
   type LucideIcon,
+  ShieldAlertIcon,
   ShieldCheckIcon,
   UserCircleIcon,
   UserPlusIcon,
@@ -21,7 +22,14 @@ import { Callout, DescriptionList, IconTile, Page, PageHeader, Panel } from "@/c
 import { useCurrentUser } from "@/components/shell/current-user";
 import { ButtonLink } from "@/components/ui/button-link";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAttention, useAudit, useDocuments, useGroups, useUsers } from "@/lib/api/queries";
+import {
+  useAttention,
+  useAudit,
+  useConfigWarnings,
+  useDocuments,
+  useGroups,
+  useUsers,
+} from "@/lib/api/queries";
 import { dateTime, greeting } from "@/lib/format";
 
 export function Overview() {
@@ -47,6 +55,7 @@ export function Overview() {
           )
         }
       />
+      {isAdmin && <ConfigWarnings />}
       {isAdmin && <OrgStats />}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <AccessPanel />
@@ -197,6 +206,24 @@ function LibraryLink() {
         Open library
         <ArrowRightIcon />
       </ButtonLink>
+    </div>
+  );
+}
+
+/** Settings that are fine for a demo but unsafe for real use, shown only to Admins. */
+function ConfigWarnings() {
+  const warnings = useConfigWarnings(true);
+  if (!warnings.data?.length) return null;
+  return (
+    <div data-testid="config-warnings">
+      <Callout icon={ShieldAlertIcon} tone="warning">
+        <span className="font-medium">Before real use:</span>
+        <ul className="mt-1 list-disc pl-4">
+          {warnings.data.map((w) => (
+            <li key={w}>{w}</li>
+          ))}
+        </ul>
+      </Callout>
     </div>
   );
 }

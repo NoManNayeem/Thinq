@@ -7,7 +7,7 @@ async def test_lists_groups_with_member_counts(
     client_for: MakeClient, org: dict[str, Any], make_user: MakeUser
 ) -> None:
     await make_user("Former Staff", active=False, groups=[org["ops"]])
-    admin = await client_for(org["tariq"])
+    admin = await client_for(org["theo"])
     groups = (await admin.get("/api/admin/groups")).json()
     assert [(g["name"], g["member_count"]) for g in groups] == [
         ("Everyone", 3),  # system group first; inactive users not counted
@@ -17,7 +17,7 @@ async def test_lists_groups_with_member_counts(
 
 
 async def test_create_rename_and_delete(client_for: MakeClient, org: dict[str, Any]) -> None:
-    admin = await client_for(org["tariq"])
+    admin = await client_for(org["theo"])
     created = await admin.post(
         "/api/admin/groups", json={"name": "Field Operations", "description": "Inspections"}
     )
@@ -40,28 +40,28 @@ async def test_create_rename_and_delete(client_for: MakeClient, org: dict[str, A
 async def test_deleting_a_group_removes_access_immediately(
     client_for: MakeClient, org: dict[str, Any]
 ) -> None:
-    priya = await client_for(org["priya"])
-    admin = await client_for(org["tariq"])
+    paula = await client_for(org["paula"])
+    admin = await client_for(org["theo"])
     assert (await admin.delete(f"/api/admin/groups/{org['finance'].id}")).status_code == 204
-    groups = (await priya.get("/api/auth/me")).json()["user"]["groups"]
+    groups = (await paula.get("/api/auth/me")).json()["user"]["groups"]
     assert [g["slug"] for g in groups] == ["everyone"]
 
 
 async def test_group_detail_lists_members_with_who_added_them(
     client_for: MakeClient, org: dict[str, Any]
 ) -> None:
-    admin = await client_for(org["tariq"])
-    await admin.put(f"/api/admin/users/{org['nadia'].id}/groups/{org['finance'].id}")
+    admin = await client_for(org["theo"])
+    await admin.put(f"/api/admin/users/{org['nora'].id}/groups/{org['finance'].id}")
     detail = (await admin.get(f"/api/admin/groups/{org['finance'].id}")).json()
     members = {m["name"]: m for m in detail["members"]}
-    assert set(members) == {"Nadia Rahman", "Priya Nair", "Tariq Haddad"}
-    assert members["Nadia Rahman"]["added_by"] == "Tariq Haddad"
-    assert members["Priya Nair"]["added_by"] is None  # seeded
+    assert set(members) == {"Nora Reyes", "Paula Novak", "Theo Hart"}
+    assert members["Nora Reyes"]["added_by"] == "Theo Hart"
+    assert members["Paula Novak"]["added_by"] is None  # seeded
     assert detail["member_count"] == 3
 
 
 async def test_everyone_is_protected(client_for: MakeClient, org: dict[str, Any]) -> None:
-    admin = await client_for(org["tariq"])
+    admin = await client_for(org["theo"])
     everyone = next(
         g for g in (await admin.get("/api/admin/groups")).json() if g["slug"] == "everyone"
     )
@@ -79,7 +79,7 @@ async def test_everyone_is_protected(client_for: MakeClient, org: dict[str, Any]
 
 
 async def test_bangla_names_are_supported(client_for: MakeClient, org: dict[str, Any]) -> None:
-    admin = await client_for(org["tariq"])
+    admin = await client_for(org["theo"])
     group = await admin.post("/api/admin/groups", json={"name": "অর্থ ও হিসাব বিভাগ"})
     assert group.status_code == 201
     body = group.json()
@@ -91,7 +91,7 @@ async def test_bangla_names_are_supported(client_for: MakeClient, org: dict[str,
 
     user = await admin.post(
         "/api/admin/users",
-        json={"name": "নাদিয়া রহমান", "email": "nadia.bn@example.com", "group_ids": [body["id"]]},
+        json={"name": "নাদিয়া রহমান", "email": "nora.bn@example.com", "group_ids": [body["id"]]},
     )
     assert user.status_code == 201
     assert user.json()["name"] == "নাদিয়া রহমান"

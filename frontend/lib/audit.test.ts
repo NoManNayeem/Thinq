@@ -8,9 +8,9 @@ const event = (action: string, details: Record<string, unknown> = {}): AuditEven
   details,
   occurred_at: "2026-11-23T10:00:00Z",
   actor_id: null,
-  actor_label: "tariq@example.com",
+  actor_label: "theo@example.com",
   target_id: null,
-  target_label: "priya@example.com",
+  target_label: "paula@example.com",
   target_type: "user",
   ip_address: null,
 });

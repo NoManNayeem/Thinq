@@ -31,6 +31,21 @@ export type KnowledgeGraph = Schemas["KnowledgeGraphOut"];
 export type GraphNode = Schemas["GraphNode"];
 export type GraphEdge = Schemas["GraphEdge"];
 export type KnowledgeStatus = Schemas["KnowledgeStatusOut"];
+export type DocumentRef = Schemas["DocumentRef"];
+export type FamilyMember = Schemas["FamilyMemberOut"];
+export type Proposal = Schemas["ProposalOut"];
+export type StatusChange = Schemas["StatusChangeOut"];
+export type StatusAction = Schemas["StatusActionIn"]["action"];
+export type Approvals = Schemas["ApprovalsOut"];
+export type ApprovalItem = Schemas["ApprovalItem"];
+export type FeedbackItem = Schemas["FeedbackItemOut"];
+export type Inbox = Schemas["InboxOut"];
+export type Resolution = Schemas["ResolveIn"]["resolution"];
+export type ReportReason = Schemas["ReportDocumentIn"]["reason"];
+export type ReportOutcome = Schemas["ReportOutcome"];
+export type Quality = Schemas["QualityOut"];
+export type Inspection = Schemas["InspectOut"];
+export type UploadBody = Schemas["UploadIn"];
 
 /**
  * Same-origin client. The browser talks only to the Next.js server, which forwards

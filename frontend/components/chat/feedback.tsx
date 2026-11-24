@@ -48,7 +48,10 @@ export function FeedbackControls({
       {
         onSuccess: (result) => {
           setCurrent(body ? (result as ChatFeedback) : null);
-          if (body) toast.success("Thanks — feedback saved");
+          if (body?.rating === "down") {
+            const to = (result as ChatFeedback | null)?.report?.assigned_to;
+            toast.success(to ? `Sent to ${to}` : "Thanks — feedback saved");
+          } else if (body) toast.success("Thanks — feedback saved");
           done?.();
         },
         onError: (e) => toast.error(errorMessage(e)),
@@ -80,12 +83,15 @@ export function FeedbackControls({
         <ThumbsDownIcon />
       </Button>
 
+      {current?.report && <ReportStatus report={current.report} />}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>What was wrong with this answer?</DialogTitle>
             <DialogDescription>
-              Your feedback helps document owners fix what&apos;s out of date.
+              It goes to the owners of the documents this answer cited (or to Admins), together with your
+              question and the answer, so they can fix it. You&apos;ll see what they did under Feedback.
             </DialogDescription>
           </DialogHeader>
           <div role="radiogroup" aria-label="Reason" className="flex flex-wrap gap-2">
@@ -137,5 +143,30 @@ export function FeedbackControls({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function ReportStatus({ report }: { report: NonNullable<ChatFeedback["report"]> }) {
+  const label =
+    report.state === "open"
+      ? `Reported to ${report.assigned_to}`
+      : `${report.resolved_by_name ?? "Owner"}: ${
+          report.resolution === "no_change"
+            ? "no change needed"
+            : report.resolution === "marked_outdated"
+              ? "marked the document outdated"
+              : report.resolution === "duplicate"
+                ? "already being handled"
+                : "fixed"
+        }`;
+  return (
+    <span
+      className="ml-2 text-muted-foreground text-xs"
+      data-testid="report-status"
+      title={report.resolution_note ?? undefined}
+    >
+      {label}
+      {report.resolution_note ? ` — ${report.resolution_note}` : ""}
+    </span>
   );
 }

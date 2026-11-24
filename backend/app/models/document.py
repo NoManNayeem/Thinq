@@ -87,6 +87,15 @@ class Document(TimestampMixin, Base):
     current_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1, server_default="1"
     )
+    # Versions of "the same document" share a family (e.g. checklist v3, v4 draft, 2024).
+    family: Mapped[str | None] = mapped_column(String(200), index=True)
+    superseded_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="SET NULL")
+    )
+    # Where the file comes from: the synced folder, or an upload in Thinq.
+    source_kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="folder", server_default="folder"
+    )
     # What the manifest said at the last scan, kept to explain drift.
     manifest: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
@@ -167,3 +176,64 @@ class DocumentScan(Base):
     stats: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
+    trigger: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="manual", server_default="manual"
+    )
+    error: Mapped[str | None] = mapped_column(Text)
+
+
+class DocumentStatusChange(Base):
+    """Every change to a document's status or review, and who made it."""
+
+    __tablename__ = "document_status_changes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    action: Mapped[str] = mapped_column(String(24), nullable=False)
+    from_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    to_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    note: Mapped[str | None] = mapped_column(Text)
+    evidence_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    actor: Mapped[User | None] = relationship()
+
+
+class StatusProposal(Base):
+    """A status suggested by an approved document (e.g. a memo naming the current form).
+
+    Never applied automatically: the owner or an Admin accepts or rejects it.
+    """
+
+    __tablename__ = "status_proposals"
+    __table_args__ = (UniqueConstraint("document_id", "proposed_status", "evidence_document_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    proposed_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    evidence_document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+    )
+    evidence_text: Mapped[str] = mapped_column(Text, nullable=False)
+    # open | accepted | rejected | superseded (the status changed some other way)
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default="open")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    decided_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    note: Mapped[str | None] = mapped_column(Text)
+
+    document: Mapped[Document] = relationship(foreign_keys=[document_id])
+    evidence: Mapped[Document] = relationship(foreign_keys=[evidence_document_id])

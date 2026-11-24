@@ -19,3 +19,6 @@ node_modules/
 .next/
 playwright-report/
 test-results/
+
+# Database backups (make backup)
+backups/

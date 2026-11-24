@@ -51,10 +51,14 @@ export const ADMIN_SCREENS = [
   "/chat",
   "/library",
   "/knowledge",
+  "/approvals",
+  "/feedback",
   "/profile",
   "/admin/attention",
   "/admin/users",
   "/admin/groups",
+  "/admin/sources",
+  "/admin/quality",
   "/admin/audit",
 ] as const;
 

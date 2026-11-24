@@ -1,14 +1,22 @@
 from datetime import timedelta
 
 from fastapi import APIRouter, Request, Response, status
-from sqlalchemy import select
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select, text
 
 from app.api.deps import DbDep, PrincipalDep, SettingsDep, client_ip
 from app.api.serializers import group_ref, user_out
 from app.core.config import Settings
-from app.core.errors import AppError, Forbidden, NotAuthenticated, NotFound, TooManyRequests
+from app.core.errors import (
+    AppError,
+    Conflict,
+    Forbidden,
+    NotAuthenticated,
+    NotFound,
+    TooManyRequests,
+)
 from app.core.security import PASSWORD_MIN_LENGTH, hash_password, verify_password
-from app.models import User
+from app.models import Document, Role, User
 from app.schemas.auth import (
     AuthConfigOut,
     DemoLoginIn,
@@ -18,12 +26,13 @@ from app.schemas.auth import (
     PasswordChangeIn,
     SessionInfo,
 )
-from app.schemas.common import ErrorResponse
+from app.schemas.common import Email, ErrorResponse
 from app.services import audit
 from app.services.access import effective_groups, effective_groups_for
 from app.services.sessions import create_session, revoke_session, revoke_user_sessions
 from app.services.throttle import LoginThrottle
 
+SETUP_LOCK_KEY = 0x7365747570  # "setup"
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 INVALID_CREDENTIALS = "Email or password is incorrect."
@@ -52,9 +61,11 @@ def _set_cookie(response: Response, settings: Settings, token: str) -> None:
 
 async def _me(db: DbDep, user: User, session_expires_at: object) -> MeOut:
     groups = await effective_groups(db, user)
+    owns = await db.scalar(select(Document.id).where(Document.owner_user_id == user.id).limit(1))
     return MeOut(
         user=user_out(user, groups),
         session=SessionInfo.model_validate({"expires_at": session_expires_at}),
+        owns_documents=owns is not None,
     )
 
 
@@ -73,7 +84,12 @@ async def login(
 ) -> MeOut:
     throttle = _throttle(request)
     key = f"{body.email}|{client_ip(request)}"
-    if wait := throttle.retry_after(key):
+    # A second, looser limit per account, whatever the address: guessing one account's
+    # password from many addresses is throttled too.
+    account = f"{body.email}|*"
+    if wait := throttle.retry_after(key) or throttle.retry_after(
+        account, limit=throttle.max_failures * 4
+    ):
         raise TooManyRequests(
             "Too many failed attempts. Try again in a few minutes.", retry_after_s=wait
         )
@@ -82,6 +98,7 @@ async def login(
     valid, new_hash = verify_password(body.password, user.password_hash if user else None)
     if user is None or not valid or not user.is_active:
         throttle.fail(key)
+        throttle.fail(account)
         await audit.record(
             db,
             actor=None,
@@ -95,6 +112,7 @@ async def login(
         raise NotAuthenticated(INVALID_CREDENTIALS, code="invalid_credentials")
 
     throttle.reset(key)
+    throttle.reset(account)
     if new_hash:
         user.password_hash = new_hash
     token, session = await create_session(
@@ -208,6 +226,59 @@ async def demo_login(
         action="auth.login",
         details={"method": "demo"},
         ip_address=client_ip(request),
+    )
+    await db.commit()
+    _set_cookie(response, settings, token)
+    return await _me(db, user, session.expires_at)
+
+
+class SetupStatusOut(BaseModel):
+    needed: bool = Field(description="True only while Thinq has no users at all")
+
+
+class SetupIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    email: Email
+    password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=256)
+
+
+@router.get("/setup", response_model=SetupStatusOut)
+async def setup_status(db: DbDep) -> SetupStatusOut:
+    return SetupStatusOut(needed=not await db.scalar(select(func.count()).select_from(User)))
+
+
+@router.post(
+    "/setup",
+    response_model=MeOut,
+    status_code=status.HTTP_201_CREATED,
+    responses={409: {"model": ErrorResponse}},
+)
+async def first_run_setup(
+    body: SetupIn, request: Request, response: Response, db: DbDep, settings: SettingsDep
+) -> MeOut:
+    """Create the first Admin on an empty installation, then sign them in. Closed for good as
+    soon as any user exists (a lock makes two simultaneous attempts safe)."""
+    await db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": SETUP_LOCK_KEY})
+    if await db.scalar(select(func.count()).select_from(User)):
+        raise Conflict("Thinq is already set up. Sign in instead.", code="already_set_up")
+    user = User(
+        email=body.email.lower(),
+        name=body.name.strip(),
+        role=Role.ADMIN.value,
+        is_active=True,
+        password_hash=hash_password(body.password),
+    )
+    db.add(user)
+    await db.flush()
+    token, session = await create_session(
+        db,
+        user,
+        ttl=timedelta(hours=settings.session_ttl_hours),
+        ip_address=client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await audit.record(
+        db, actor=user, action="auth.first_admin_created", ip_address=client_ip(request)
     )
     await db.commit()
     _set_cookie(response, settings, token)

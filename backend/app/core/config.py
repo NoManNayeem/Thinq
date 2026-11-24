@@ -39,6 +39,23 @@ class Settings(BaseSettings):
         description="Initial password given to seeded users. Leave empty for demo-only sign-in.",
     )
 
+    review_period_days: int = Field(
+        default=180, description="An Approved document is 'review overdue' after this many days."
+    )
+    sync_interval_s: float = Field(
+        default=300, description="How often the document folder is re-synced. 0 turns it off."
+    )
+    upload_max_bytes: int = 1_000_000
+    request_max_bytes: int = 2_000_000
+    chat_questions_per_minute: int = 12
+    api_requests_per_minute: int = 600
+    api_docs: bool | None = Field(
+        default=None, description="Serve /api/docs. Default: on except in production."
+    )
+    metrics_token: str | None = Field(
+        default=None, description="Enables /api/metrics (Prometheus) for this Bearer token."
+    )
+
     login_max_failures: int = 5
     login_window_s: int = 900
 

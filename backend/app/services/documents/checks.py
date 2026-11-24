@@ -75,6 +75,9 @@ class DocFacts:
     source_present: bool
     manifest_group_name: str | None = None
     manifest_drift: dict[str, Any] = field(default_factory=dict)
+    # Set when an Approved document's review is overdue (see services.documents.trust).
+    review_overdue_since: str | None = None
+    last_reviewed: str | None = None
 
 
 def _words(text: str) -> list[str]:
@@ -159,6 +162,16 @@ def check_document(doc: DocFacts, group_names: set[str]) -> list[Finding]:
                 FlagSeverity.WARNING,
                 "The source file is missing. The last imported copy is shown.",
                 {"source_path": doc.source_path},
+            )
+        )
+    if doc.is_registered and doc.review_overdue_since:
+        found.append(
+            Finding(
+                "review_overdue",
+                FlagSeverity.WARNING,
+                "This approved document is overdue for review "
+                f"(due {doc.review_overdue_since}). Ask the owner to confirm it's still correct.",
+                {"last_reviewed": doc.last_reviewed, "due": doc.review_overdue_since},
             )
         )
     if doc.is_registered and doc.status == DocumentStatus.UNKNOWN:

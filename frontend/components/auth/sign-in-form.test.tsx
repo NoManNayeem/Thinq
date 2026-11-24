@@ -18,11 +18,11 @@ describe("SignInForm", () => {
   it("submits trimmed credentials", async () => {
     const onSubmit = vi.fn();
     render(<SignInForm onSubmit={onSubmit} pending={false} error={null} />);
-    await userEvent.type(screen.getByLabelText("Work email"), "  nadia@example.com ");
+    await userEvent.type(screen.getByLabelText("Work email"), "  nora@example.com ");
     await userEvent.type(screen.getByLabelText("Password"), "secret");
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect(onSubmit).toHaveBeenCalledWith(
-      { email: "nadia@example.com", password: "secret" },
+      { email: "nora@example.com", password: "secret" },
       expect.anything(),
     );
   });

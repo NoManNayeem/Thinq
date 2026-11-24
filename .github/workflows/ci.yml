@@ -94,6 +94,13 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps chromium
           E2E_BASE_URL=http://localhost:3000 pnpm test:e2e
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.13.9"
+          enable-cache: true
+      - name: Golden questions against the running stack (access and leak cases must pass)
+        working-directory: backend
+        run: uv run python -m app.eval --cases ../seed/sample/eval.json --base-url http://localhost:3000
       - name: Service logs
         if: failure()
         run: docker compose logs --no-color

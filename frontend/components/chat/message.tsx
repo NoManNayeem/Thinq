@@ -35,6 +35,9 @@ function citationComponents(
         <table className="w-full text-left text-sm">{children}</table>
       </div>
     ),
+    // Answers never load images: a planted instruction could otherwise make the model write an
+    // image URL that sends visible text to another server.
+    img: ({ alt }) => (alt ? <span className="text-muted-foreground">[{alt}]</span> : null),
     th: ({ children }) => <th className="border-b bg-secondary px-4 py-2 font-medium">{children}</th>,
     td: ({ children }) => <td className="border-b px-4 py-2 align-top">{children}</td>,
     strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
@@ -53,7 +56,7 @@ function citationComponents(
                     e.preventDefault();
                     onCite(n);
                   }}
-                  className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-secondary px-1 align-text-bottom font-medium text-muted-foreground text-xs no-underline hover:bg-primary-subtle hover:text-primary"
+                  className="ml-1 inline-flex h-5 min-w-4 items-center justify-center rounded-md bg-secondary px-1 align-text-bottom font-medium text-muted-foreground text-xs no-underline hover:bg-primary-subtle hover:text-primary"
                   aria-label={source ? `Source ${n}: ${source.title}` : `Source ${n}`}
                   data-testid="citation"
                 />

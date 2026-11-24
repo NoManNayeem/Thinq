@@ -1,6 +1,6 @@
 """Import documents from a folder plus a hand-kept manifest.
 
-Layout: ``<root>/manifest.csv`` (optional) and ``<root>/documents/*.md``.
+Layout: ``<root>/manifest.csv`` (optional) and ``<root>/documents/**/*.md`` (sub-folders allowed).
 
 - New files are created. Files in the manifest are registered with its metadata; files
   that aren't are imported as *unregistered* (no access group, so Admins only).
@@ -8,6 +8,11 @@ Layout: ``<root>/manifest.csv`` (optional) and ``<root>/documents/*.md``.
   on every start-up.
 - After the first import Thinq is the system of record: later manifest changes are
   recorded as drift (and flagged) rather than overwriting what Admins have set.
+- A file that was renamed or moved keeps its document, metadata and history: it's matched by
+  identical content, or by the same file name in another folder.
+- A file that disappears is marked missing at once, which takes it out of answers.
+- Uploaded documents (``source_kind="upload"``) live only in Thinq and are never marked missing.
+- The whole scan is one transaction: it either applies completely or not at all.
 """
 
 import csv
@@ -25,6 +30,7 @@ from sqlalchemy.orm import selectinload
 from app.models import Document, DocumentScan, DocumentStatus, DocumentVersion, Group, User
 from app.services import audit
 from app.services.documents.flags import reconcile_flags
+from app.services.documents.trust import ensure_families, refresh_proposals
 from app.services.groups import slugify
 
 log = structlog.get_logger(__name__)
@@ -61,6 +67,7 @@ class ManifestRow:
 class ScanReport:
     created: list[str] = field(default_factory=list)
     updated: list[str] = field(default_factory=list)
+    renamed: list[dict[str, str]] = field(default_factory=list)
     unchanged: int = 0
     missing: list[str] = field(default_factory=list)
     manifest_without_file: list[str] = field(default_factory=list)
@@ -70,6 +77,7 @@ class ScanReport:
         return {
             "created": self.created,
             "updated": self.updated,
+            "renamed": self.renamed,
             "unchanged": self.unchanged,
             "missing": self.missing,
             "manifest_without_file": self.manifest_without_file,
@@ -190,7 +198,18 @@ def _update_drift(doc: Document, row: ManifestRow, lookups: _Lookups) -> None:
     doc.manifest = {"row": current, "drift": drift}
 
 
-async def scan_documents(db: AsyncSession, root: Path | None, *, actor: User | None) -> ScanReport:
+def _files(docs_dir: Path) -> list[tuple[str, Path]]:
+    """(relative POSIX path, path) for every document file, sub-folders included."""
+    out = []
+    for path in sorted(docs_dir.rglob("*")):
+        if path.is_file() and path.suffix.lower() in SUFFIXES and not path.name.startswith("."):
+            out.append((path.relative_to(docs_dir).as_posix(), path))
+    return out
+
+
+async def scan_documents(
+    db: AsyncSession, root: Path | None, *, actor: User | None, trigger: str = "manual"
+) -> ScanReport:
     """Import or refresh every document under ``root``. Safe to run repeatedly and concurrently."""
     report = ScanReport()
     docs_dir = root / "documents" if root else None
@@ -199,48 +218,64 @@ async def scan_documents(db: AsyncSession, root: Path | None, *, actor: User | N
         return report
 
     await db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": SCAN_LOCK_KEY})
-    scan = DocumentScan(actor_id=actor.id if actor else None)
+    scan = DocumentScan(actor_id=actor.id if actor else None, trigger=trigger)
     db.add(scan)
 
     manifest = read_manifest(root / "manifest.csv") if root else {}
     lookups = _Lookups(
         list((await db.scalars(select(Group))).all()), list((await db.scalars(select(User))).all())
     )
-    existing = {d.source_path: d for d in (await db.scalars(select(Document))).all()}
+    existing = {
+        d.source_path: d
+        for d in (await db.scalars(select(Document).where(Document.source_kind == "folder"))).all()
+    }
+    files = _files(docs_dir)
+    on_disk = {rel for rel, _ in files}
+    # Documents whose file is gone: candidates for a rename or a move.
+    vanished = {sp: d for sp, d in existing.items() if sp not in on_disk}
     seen: set[str] = set()
 
-    for path in sorted(
-        p for p in docs_dir.iterdir() if p.is_file() and p.suffix.lower() in SUFFIXES
-    ):
+    for rel, path in files:
         content = path.read_text(encoding="utf-8", errors="replace")
         digest = _hash(content)
         row = manifest.get(path.name)
-        seen.add(path.name)
-        doc = existing.get(path.name)
+        seen.add(rel)
+        doc = existing.get(rel)
 
         if doc is None:
-            doc = Document(
-                source_path=path.name,
-                title=_title_from(content, path),
-                content=content,
-                content_hash=digest,
-                current_version=1,
-                last_modified=_file_date(path),
-                status=DocumentStatus.UNKNOWN.value,
-                is_registered=False,
-                source_present=True,
-                manifest={},
+            moved = next((d for d in vanished.values() if d.content_hash == digest), None) or next(
+                (d for d in vanished.values() if Path(d.source_path).name == path.name), None
             )
-            if row:
-                _apply_manifest(doc, row, lookups)
-                doc.manifest = {"row": row.as_dict(), "drift": {}}
-            db.add(doc)
-            await db.flush()
-            db.add(
-                DocumentVersion(document_id=doc.id, version=1, content=content, content_hash=digest)
-            )
-            report.created.append(path.name)
-            continue
+            if moved is not None:
+                vanished.pop(moved.source_path)
+                report.renamed.append({"from": moved.source_path, "to": rel})
+                moved.source_path = rel
+                doc = moved
+            else:
+                doc = Document(
+                    source_path=rel,
+                    title=_title_from(content, path),
+                    content=content,
+                    content_hash=digest,
+                    current_version=1,
+                    last_modified=_file_date(path),
+                    status=DocumentStatus.UNKNOWN.value,
+                    is_registered=False,
+                    source_present=True,
+                    manifest={},
+                )
+                if row:
+                    _apply_manifest(doc, row, lookups)
+                    doc.manifest = {"row": row.as_dict(), "drift": {}}
+                db.add(doc)
+                await db.flush()
+                db.add(
+                    DocumentVersion(
+                        document_id=doc.id, version=1, content=content, content_hash=digest
+                    )
+                )
+                report.created.append(rel)
+                continue
 
         changed = False
         if not doc.source_present:
@@ -259,7 +294,7 @@ async def scan_documents(db: AsyncSession, root: Path | None, *, actor: User | N
                     content_hash=digest,
                 )
             )
-            report.updated.append(path.name)
+            report.updated.append(rel)
             changed = True
         if row and not doc.is_registered:
             _apply_manifest(doc, row, lookups)
@@ -267,20 +302,23 @@ async def scan_documents(db: AsyncSession, root: Path | None, *, actor: User | N
             changed = True
         elif row:
             _update_drift(doc, row, lookups)
-        if not changed:
+        if not changed and not any(r["to"] == rel for r in report.renamed):
             report.unchanged += 1
 
-    for source_path, doc in existing.items():
-        if source_path not in seen and doc.source_present:
+    for source_path, doc in vanished.items():
+        if doc.source_present:
             doc.source_present = False
             report.missing.append(source_path)
-    report.manifest_without_file = sorted(set(manifest) - seen - set(existing))
+    known_names = {Path(sp).name for sp in seen} | {Path(sp).name for sp in existing}
+    report.manifest_without_file = sorted(set(manifest) - known_names)
 
     await db.flush()
+    await ensure_families(db)
     await reconcile_flags(db)
+    await refresh_proposals(db)
     scan.finished_at = datetime.now(UTC)
     scan.stats = report.as_dict()
-    if report.created or report.updated or report.missing or actor is not None:
+    if report.created or report.updated or report.missing or report.renamed or actor is not None:
         await audit.record(
             db,
             actor=actor,
@@ -288,6 +326,7 @@ async def scan_documents(db: AsyncSession, root: Path | None, *, actor: User | N
             details={
                 "created": len(report.created),
                 "updated": len(report.updated),
+                "renamed": len(report.renamed),
                 "missing": len(report.missing),
             },
         )
@@ -297,6 +336,25 @@ async def scan_documents(db: AsyncSession, root: Path | None, *, actor: User | N
         **{k: len(v) if isinstance(v, list) else v for k, v in report.as_dict().items()},
     )
     return report
+
+
+async def record_failed_scan(
+    db: AsyncSession, *, actor: User | None, trigger: str, error: str
+) -> DocumentScan:
+    """Called after a scan's transaction rolled back, so the failure is visible to Admins."""
+    scan = DocumentScan(
+        actor_id=actor.id if actor else None,
+        trigger=trigger,
+        finished_at=datetime.now(UTC),
+        error=error[:2000],
+        stats={},
+    )
+    db.add(scan)
+    await audit.record(
+        db, actor=actor, action="documents.scan_failed", details={"error": error[:300]}
+    )
+    await db.flush()
+    return scan
 
 
 async def document_count(db: AsyncSession) -> int:
