@@ -7,6 +7,7 @@
  * request time, so one image works in every environment.
  */
 import type { NextRequest } from "next/server";
+import { clientAddress } from "@/lib/forwarded";
 
 const HOP_BY_HOP = new Set([
   "connection",
@@ -36,16 +37,15 @@ async function forward(request: NextRequest, ctx: RouteContext<"/api/[...path]">
   });
   headers.set("x-forwarded-host", request.headers.get("host") ?? request.nextUrl.host);
   headers.set("x-forwarded-proto", request.nextUrl.protocol.replace(":", ""));
-  // The client's address, as added by the nearest trusted hop. The leftmost entries are whatever
-  // the client sent, so they're never believed. With no reverse proxy in front
-  // (THINQ_TRUSTED_PROXY_HOPS=0) the last entry is the one Next.js recorded from the socket,
-  // unless the client sent its own header; put a reverse proxy in front for exact addresses.
-  const hops = Number(process.env.THINQ_TRUSTED_PROXY_HOPS ?? "0") || 0;
-  const chain = (request.headers.get("x-forwarded-for") ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const clientIp = chain[Math.max(0, chain.length - 1 - hops)];
+  // The client's address. Each trusted proxy appends the address it received the request from,
+  // so with N proxies in front (THINQ_TRUSTED_PROXY_HOPS=N) the client is the N-th entry from the
+  // right; anything further left was sent by the client and is never believed. With no proxy (0),
+  // the last entry is the one Next.js recorded from the socket, unless the client sent its own
+  // header; put a reverse proxy in front for exact addresses.
+  const clientIp = clientAddress(
+    request.headers.get("x-forwarded-for"),
+    Number(process.env.THINQ_TRUSTED_PROXY_HOPS ?? "0") || 0,
+  );
   if (clientIp) headers.set("x-forwarded-for", clientIp);
   else headers.delete("x-forwarded-for");
 

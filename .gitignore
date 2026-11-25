@@ -1,5 +1,6 @@
 # Private working documents and sample data
 docs/
+INTERVIEW_BRIEF.md
 
 # Local environment
 .env
