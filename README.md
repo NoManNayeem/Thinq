@@ -8,7 +8,19 @@ Most "company brains" fail the same way: they search everything and confidently 
   <img src="screenshots/04-chat-approved-answer.png" alt="Ask Thinq: the answer cites the approved Travel Policy v2, notes that a newer draft exists and that an outdated version was left out, and names its top source with its status." width="100%">
 </p>
 
-**Contents:** [What it does](#what-it-does) · [Screenshots](#screenshots) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Your own data](#use-your-own-data) · [No seed](#start-empty-no-seed) · [AI and Cognee](#turn-on-ai-answers-and-the-knowledge-layer) · [Develop locally](#develop-locally) · [Test](#test) · [Production](#go-to-production) · [Configuration](#configuration)
+**Contents:** [Video walkthrough](#video-walkthrough) · [What it does](#what-it-does) · [Screenshots](#screenshots) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Your own data](#use-your-own-data) · [No seed](#start-empty-no-seed) · [AI and Cognee](#turn-on-ai-answers-and-the-knowledge-layer) · [Develop locally](#develop-locally) · [Test](#test) · [Production](#go-to-production) · [Configuration](#configuration)
+
+## Video walkthrough
+
+A 12-minute tour: running it with Docker, the README, and the app in use, with every feature shown live.
+
+<p align="center">
+  <a href="https://youtu.be/gh0cZCoOrsc">
+    <img src="https://img.youtube.com/vi/gh0cZCoOrsc/maxresdefault.jpg" alt="Watch the Thinq walkthrough on YouTube" width="100%">
+  </a>
+</p>
+
+<p align="center"><a href="https://youtu.be/gh0cZCoOrsc"><b>▶ Watch on YouTube</b></a></p>
 
 ## What it does
 

@@ -1,6 +1,7 @@
 # Private working documents and sample data
 docs/
 INTERVIEW_BRIEF.md
+frontend/e2e-screenshots/zz-*.spec.ts
 
 # Local environment
 .env
